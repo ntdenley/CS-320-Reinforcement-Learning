@@ -6,11 +6,10 @@ https://www.learndatasci.com/tutorials/reinforcement-q-learning-scratch-python-o
 
 With some adaptations for the newer version of gym and to allow for rendering post-training.
 '''
-
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 import random
+from gymplots import aiPlot
 
 # Initialize the environment with human render mode so it can be visible.
 env = gym.make("Taxi-v3")
@@ -18,31 +17,25 @@ env = gym.make("Taxi-v3")
 # Initialize empty q table.
 q_table = np.zeros([env.observation_space.n, env.action_space.n])
 
-# Enable interactive mode for the plot
-plt.ion()
-
 # Hyperparameters
-alpha = 0.1 # Training "strength" value
-gamma = 0.6 # Secondary training "strength" value
+alpha = 0.1 # Learning rate
+gamma = 0.6 # Discount factor - determines value of previous rewards (60%)
 epsilon = 0.1 # Take random action 10% of the time.
 
-# Plot variables
-plot_step = 10 # Adjusts how often data is plotted - lower number = slower but more precise data.
-penalty_list = []
-xs = []
-plot = None
+# Initialize plot which updates every 1000 frames and calculates averages
+graph = aiPlot(step_value=1000, calculate_avg=True)
 
 # Training Loop
-for i in range(1, 2500):
+for i in range(1, 100000):
     # Get initial info
     state, info = env.reset()
 
     # Set env variables
-    epochs, penalties, reward, = 0, 0, 0
-    done = False
+    epochs, penalties, reward = 0, 0, 0
+    done, truncated = False, False
     
     # Game loop
-    while not done:
+    while not (done or truncated):
         # Random chance of taking random action
         if random.uniform(0, 1) < epsilon:
             action = env.action_space.sample() # Explore action space
@@ -52,50 +45,32 @@ for i in range(1, 2500):
         # Get info from environment
         next_state, reward, done, truncated, info = env.step(action) 
         
-        # Adjust q value based on current state
+        # Adjust q value based on current state and previous state
         old_value = q_table[state, action]
         next_max = np.max(q_table[next_state])   
         new_value = (1 - alpha) * old_value + alpha * (reward + gamma * next_max)
         q_table[state, action] = new_value
 
-        # Dectect penalties
+        # Dectect drop off/pick up penalties
         if reward == -10:
             penalties += 1
 
         state = next_state
-        
-    if i % 100 == 0:
-        print(f"Episode: {i}")
 
-    # Plotting
-    if i % plot_step == 0:
-
-        # Add penalty count
-        penalty_list.append(penalties)
-        xs = [x for x in range(0, len(penalty_list)*plot_step, plot_step)]
-
-        # Update Plot
-        if plot is not None:
-            plot.remove()
-        plot = plt.plot(xs, penalty_list, color = 'r')[0]
-        plt.xlim(xs[0], xs[-1])
-        plt.pause(0.0001)
+    graph.update(i, penalties) # Update graph with new values
 
 print("Training finished.\n")
 
 # Remake environment for human eyes
 env = gym.make("Taxi-v3", render_mode="human")
 
-episodes = 100
-
 # Post-Training loop
-for _ in range(episodes):
+for _ in range(100):
     state, info = env.reset()
-    
     done = False
     
     while not done:
 
-        # Get action from q-table
+        # Get action from q-table (determined by max col value in the row)
         action = np.argmax(q_table[state])
         state, reward, done, truncated, info = env.step(action)
