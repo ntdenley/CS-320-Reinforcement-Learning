@@ -17,11 +17,13 @@
     Resource(s):
         https://pypi.org/project/pillow/
         https://gymnasium.farama.org/
+        https://sourceforge.net/projects/swig/
 
 '''
 
 #   Imports and Declarations
-import gym                              #   OpenAI Gym Environments
+import gymnasium as gym                 #   OpenAI Gym Environments
+import numpy as np
 import tkinter as tk                    #   GUI
 from tkinter import ttk
 from PIL import Image, ImageTk          #   Image Processing
@@ -59,14 +61,17 @@ class environmentGUI:
         self.canvas.grid(row=2, column=0, columnspan=2, pady=10)
 
     def loadEnvironment(self):
-        #   Creates selected Gym environment 
+        # Creates selected Gym environment 
         environmentID = self.selectedEnvironment.get()     
         environment = gym.make(environmentID)             
-        state = environment.reset()                         
+        state, done = environment.reset()  # Extracting the state and done flag from the tuple
 
-        #   Renders the environment and displays it on a canvas
-        image = Image.fromarray(state)
-        image = image.resize((400, 300), Image.ANTIALIAS)
+        # Normalize the state array if needed
+        normalized_state = np.array(state, dtype=np.uint8)
+
+        # Renders the environment and displays it on a canvas
+        image = Image.fromarray(normalized_state)
+        image = image.resize((400, 300), resample=3)
         imageTK = ImageTk.PhotoImage(image)
         self.canvas.imageTK = imageTK  
         self.canvas.create_image(0, 0, anchor=tk.NW, image=imageTK)
