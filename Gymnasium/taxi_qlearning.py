@@ -11,66 +11,67 @@ import numpy as np
 import random
 from gymplots import aiPlot
 
-# Initialize the environment with human render mode so it can be visible.
-env = gym.make("Taxi-v3")
+def run_env(episodes, calc_avg):
+    # Initialize the environment with human render mode so it can be visible.
+    env = gym.make("Taxi-v3")
 
-# Initialize empty q table.
-q_table = np.zeros([env.observation_space.n, env.action_space.n])
+    # Initialize empty q table.
+    q_table = np.zeros([env.observation_space.n, env.action_space.n])
 
-# Hyperparameters
-alpha = 0.1 # Learning rate
-gamma = 0.6 # Discount factor - determines value of previous rewards (60%)
-epsilon = 0.1 # Take random action 10% of the time.
+    # Hyperparameters
+    alpha = 0.1 # Learning rate
+    gamma = 0.6 # Discount factor - determines value of previous rewards (60%)
+    epsilon = 0.1 # Take random action 10% of the time.
 
-# Initialize plot which updates every 1000 frames and calculates averages
-graph = aiPlot(step_value=1000, calculate_avg=True)
+    # Initialize plot which updates every 1000 frames and calculates averages
+    graph = aiPlot(step_value=1000, calculate_avg=calc_avg)
 
-# Training Loop
-for i in range(1, 100000):
-    # Get initial info
-    state, info = env.reset()
+    # Training Loop
+    for i in range(1, episodes):
+        # Get initial info
+        state, info = env.reset()
 
-    # Set env variables
-    epochs, penalties, reward = 0, 0, 0
-    done, truncated = False, False
-    
-    # Game loop
-    while not (done or truncated):
-        # Random chance of taking random action
-        if random.uniform(0, 1) < epsilon:
-            action = env.action_space.sample() # Explore action space
-        else:
-            action = np.argmax(q_table[state]) # Exploit learned values
-
-        # Get info from environment
-        next_state, reward, done, truncated, info = env.step(action) 
+        # Set env variables
+        epochs, penalties, reward = 0, 0, 0
+        done, truncated = False, False
         
-        # Adjust q value based on current state and previous state
-        old_value = q_table[state, action]
-        next_max = np.max(q_table[next_state])   
-        new_value = (1 - alpha) * old_value + alpha * (reward + gamma * next_max)
-        q_table[state, action] = new_value
+        # Game loop
+        while not (done or truncated):
+            # Random chance of taking random action
+            if random.uniform(0, 1) < epsilon:
+                action = env.action_space.sample() # Explore action space
+            else:
+                action = np.argmax(q_table[state]) # Exploit learned values
 
-        # Dectect drop off/pick up penalties
-        if reward == -10:
-            penalties += 1
+            # Get info from environment
+            next_state, reward, done, truncated, info = env.step(action) 
+            
+            # Adjust q value based on current state and previous state
+            old_value = q_table[state, action]
+            next_max = np.max(q_table[next_state])   
+            new_value = (1 - alpha) * old_value + alpha * (reward + gamma * next_max)
+            q_table[state, action] = new_value
 
-        state = next_state
+            # Dectect drop off/pick up penalties
+            if reward == -10:
+                penalties += 1
 
-    graph.update(i, penalties) # Update graph with new values
+            state = next_state
 
-print("Training finished.\n")
+        graph.update(i, penalties) # Update graph with new values
 
-# Remake environment for human eyes
-env = gym.make("Taxi-v3", render_mode="human")
+    print("Training finished.\n")
 
-# Post-Training loop
-for _ in range(100):
-    state, info = env.reset()
-    done = False
-    
-    while not done:
+    # Remake environment for human eyes
+    env = gym.make("Taxi-v3", render_mode="human")
 
-        # Get action from q-table (determined by max col value in the row)
-        action = np.argmax(q_table[state])
-        state, reward, done, truncated, info = env.step(action)
+    # Post-Training loop
+    for _ in range(100):
+        state, info = env.reset()
+        done = False
+        
+        while not done:
+
+            # Get action from q-table (determined by max col value in the row)
+            action = np.argmax(q_table[state])
+            state, reward, done, truncated, info = env.step(action)
