@@ -1,24 +1,44 @@
 from tensor import Tensor
 
-a = Tensor.from_list([[[1,2,3],[4,5,6]],[[2,3,4],[18,1,18]]])
-b = Tensor.fill(a.shape, 2)
+# just binary_mul
+# a = Tensor.from_list([[[1,2,3],[4,5,6]],[[2,3,4],[18,1,18]]])
+# a.init_grad()
+# b = Tensor.fill(a.shape, 2)
+# b.init_grad()
+# out = a.binary_mul(b)
+# out.sum().backward()
+# print(a.grad)
+# print(b.grad)
 
-a.init_grad()
-b.init_grad()
+# binary_div
+# init
+# a = Tensor.from_list([1,2,3])
+# a.init_grad()
+# b = Tensor.fill(a.shape, 2)
+# b.init_grad()
 
-recip = b.map_pow(-1)
-# recip.sum().backward()
+# # **-1
+# recip = b.map_pow(-1)
 
-c = a.binary_mul(recip)
-c.sum().backward()
+# # a * (b**-1)
+# out = a.binary_mul(recip)
+# out.sum().backward()
 
-print(b.grad)
-print(a.map_mul(-1/4))
-# # c = ((a.binary_pow(b)).binary_add(b)).sum()
-# c = a.binary_div(b)
-# print(c)
-# c = c.sum()
+# print('a')
+# print(a.grad)
+# print('b')
+# print(b.grad)
+# print('recip')
+# print(recip.grad)
+# print('out')
+# print(out.grad)
 
-# c.backward()
+# a = Tensor.from_list([[1,2],[3,4]])
+# b = Tensor.from_list([[5,7],[8,9],[10,11]])
+# print(a.shape)
+# print(b.shape)
+# print(a.matmul(b))
 
-# for n in (a,b,c): print(n.info())
+a = Tensor.from_list([1,2,3])
+b = Tensor.from_list([4,5,6])
+print(a.dot(b))

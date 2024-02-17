@@ -6,6 +6,10 @@ Sources
 - Explanation of pytorch tensor internals: http://blog.ezyang.com/2019/05/pytorch-internals/
 - Inpsiration for architecture and implementation details: https://github.com/tinygrad/tinygrad
                                                            https://github.com/pytorch/pytorch/blob/main/c10/core/TensorImpl.h
+
+Edge cases:
+- When division by 0 is encountered anywhere, an error is thrown.
+- When log(0) is encountered in a gradient, we add 1e9 to it.
 '''
 
 import random
@@ -179,7 +183,7 @@ class Tensor:
                     raise Exception("Division by zero encountered.")
         def _backward(out, inp, value):
             for i in range(out.num_elements()):
-                inp.grad.data[i] += value * (inp.data[i] ** (value-1))
+                inp.grad.data[i] += value * (inp.data[i] ** (value-1)) * out.grad.data[i]
         return self.map(value, op, _backward)
     
     def map_div(self, value):
@@ -235,49 +239,57 @@ class Tensor:
             for i in range(a.num_elements()):
                 a.data[i] *= b.data[i]
         def _backward(out, inp1, inp2):
-            print('here')
-            print(out.grad)
-            print(inp1.grad)
-            print(inp2.grad)
-            print()
-            for i in range(len(inp1.grad.data)):
+            for i in range(inp1.num_elements()):
                 inp1.grad.data[i] += inp2.data[i] * out.grad.data[i]
                 inp2.grad.data[i] += inp1.data[i] * out.grad.data[i]
         return self.binary_op(other, op, _backward)
     
-    # we don't really need this but i added it. might remove if we add accelerators
-    # might be useful for binary division.
-    # we need a more complete solution to the problems of doing log(0) and division by 0
     def binary_pow(self, other):
         def op(a, b):
             for i in range(a.num_elements()):
                 a.data[i] = a.data[i] ** b.data[i]
         def _backward(out, inp1, inp2):
             for i in range(len(inp1.grad.data)):
-                inp1.grad.data[i] += inp2.data[i] * (inp1.data[i] ** (inp2.data[i]-1))
+                inp1.grad.data[i] += inp2.data[i] * (inp1.data[i] ** (inp2.data[i]-1)) * out.grad.data[i]
                 if inp1.data[i] != 0:
-                    inp2.grad.data[i] += log(inp1.data[i]) * (inp1.data[i] ** inp2.data[i])
+                    inp2.grad.data[i] += log(inp1.data[i]) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i]
+                else:
+                    inp2.grad.data[i] += log(1e9) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i] 
         return self.binary_op(other, op, _backward)
 
-    # this doesn't compute gradients correctly for some reason
     def binary_div(self, other):
         return self.binary_mul(other.map_pow(-1))
 
-    # idk what to call these
+    # matrix operations
     def dot(self, other):
-        pass
+        len1 = len(self.shape)
+        len2 = len(other.shape)
+        if len1 != 1 or len2 != 1:
+            raise Exception(f"Expected two 1D arrays, but got a {len1}D and {len2}D array.")
+        return self.binary_mul(other).sum()
 
+    # still working on this
     def matmul(self, other):
-        pass
+        if len(self.shape) != 2 or len(other.shape) != 2:
+            raise Exception("For matmul, only 2d arrays are allowed")
+        if self.shape[1] != other.shape[0]:
+            raise Exception(f"For matmul: {self.shape} x {other.shape} doesn't work")
+
+        new = Tensor.fill(self.shape, 0)
+        new.init_grad()
+        
+
+        return new
 
     ''' gradient related methods '''
     def init_grad(self):
         self.grad = Tensor().fill(self.shape, 0)
 
     def stack_trace(self):
-        print("STACK TRACE:")
+        print("STACK TRACE (this is the bottom):")
         for a in _autograd_stack:
             print(a)
+        print("END STACK TRACE")
         print()
 
     # you can only do this once, since this empties the stack.
