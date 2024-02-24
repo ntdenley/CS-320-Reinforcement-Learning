@@ -1,2 +1,3 @@
 .conda
 gui/swigwin-4.2.0
+__pycache__
