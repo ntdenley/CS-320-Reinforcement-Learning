@@ -119,38 +119,46 @@ class Tensor:
 
     ''' math operations. The domain is always Tensor -> Tensor '''
     # unary
-    def reduce(self):
-        pass
-
     def sum(self):
         n = 0
         for d in self.data:
             n += d
         new = Tensor.manual_init([n], [1])
-        new.init_grad()
         
-        def _backward(out, inp):
-            for i in range(len(inp.grad.data)):
-                inp.grad.data[i] += out.grad.data[0]
-
-        _autograd_stack.append(new)
-        _autograd_stack.append(self)
-        _autograd_stack.append(_backward)
-        _autograd_stack.append(ops.Unary)
+        if self.grad != None:
+            new.init_grad()
+            def _backward(out, inp):
+                for i in range(len(inp.grad.data)):
+                    inp.grad.data[i] += out.grad.data[0]
+            _autograd_stack.append(new)
+            _autograd_stack.append(self)
+            _autograd_stack.append(_backward)
+            _autograd_stack.append(ops.Unary)
 
         return new
     
     def map(self, value, op, _backward):
         new = Tensor.manual_init(self.data.copy(), self.shape)
         op(new, value)
-        new.init_grad()
-        _autograd_stack.append(new)
-        _autograd_stack.append(self)
-        _autograd_stack.append(value)
-        _autograd_stack.append(_backward)
-        _autograd_stack.append(ops.Map)
+        if self.grad != None:
+            new.init_grad()
+            _autograd_stack.append(new)
+            _autograd_stack.append(self)
+            _autograd_stack.append(value)
+            _autograd_stack.append(_backward)
+            _autograd_stack.append(ops.Map)
         return new
     
+    def relu(self):
+        def op(tensor, value):
+            for i in range(tensor.num_elements()):
+                tensor.data[i] = max(tensor.data[i], 0)
+        def _backward(out, inp, value):
+            for i in range(out.num_elements()):
+                if inp.data[i] > 0:
+                    inp.grad.data[i] += out.grad.data[i]
+        return self.map(0, op, _backward)
+
     def map_add(self, value):
         def op(tensor, value):
             for i in range(tensor.num_elements()):
@@ -175,6 +183,8 @@ class Tensor:
     def map_pow(self, value):
         def op(tensor, value):
             for i in range(tensor.num_elements()):
+                if abs(value) < 1 and tensor.data[i] < 0: 
+                    raise Exception("can't take the root of negatives; use .relu() first")
                 if value >= 0:
                     tensor.data[i] = tensor.data[i]**value
                 elif tensor.data[i] != 0:
@@ -189,16 +199,6 @@ class Tensor:
     def map_div(self, value):
         return self.map_mul(1/value)
     
-    def relu(self):
-        def op(tensor, value):
-            for i in range(tensor.num_elements()):
-                tensor.data[i] = max(tensor.data[i], 0)
-        def _backward(out, inp, value):
-            for i in range(out.num_elements()):
-                if inp.data[i] > 0:
-                    inp.grad.data[i] += out.grad.data[i]
-        return self.map(0, op, _backward)
-
     # binary 
     def binary_op(self, other, op, _backward):
         if self.shape != other.shape:
@@ -206,12 +206,13 @@ class Tensor:
                             "they must have the same shape")
         new = Tensor.manual_init(self.data.copy(), self.shape)
         op(new, other)
-        new.init_grad()
-        _autograd_stack.append(new)
-        _autograd_stack.append(self)
-        _autograd_stack.append(other)
-        _autograd_stack.append(_backward)
-        _autograd_stack.append(ops.Binary)
+        if self.grad != None:
+            new.init_grad()
+            _autograd_stack.append(new)
+            _autograd_stack.append(self)
+            _autograd_stack.append(other)
+            _autograd_stack.append(_backward)
+            _autograd_stack.append(ops.Binary)
         return new
 
     def binary_add(self, other):
@@ -274,10 +275,8 @@ class Tensor:
             raise Exception("For matmul, only 2d arrays are allowed")
         if self.shape[1] != other.shape[0]:
             raise Exception(f"For matmul: {self.shape} x {other.shape} doesn't work")
-
         new = Tensor.fill(self.shape, 0)
         new.init_grad()
-        
 
         return new
 
@@ -295,10 +294,11 @@ class Tensor:
     # you can only do this once, since this empties the stack.
     def backward(self):
         # why is this here?
+        # just to emulate pytorch i guess
         if self.shape != [1]:
             raise Exception("You can only call .backward of tensors with shape [1]")
 
-        self.stack_trace()
+        # self.stack_trace()
 
         self.grad = Tensor().fill(self.shape, 1)
         while (len(_autograd_stack) > 0):
@@ -338,6 +338,57 @@ class Tensor:
     
     ''' wrappers around math functions '''
 
+    def __add__(self, other):
+        if isinstance(other, Tensor):
+            return self.binary_add(other)
+        if isinstance(other, (float, int)):
+            return self.map_add(other)
+        else:  
+            raise Exception(f"Can't add tensor with type {type(other)}")
+    
+    def __sub__(self, other):
+        if isinstance(other, Tensor):
+            return self.binary_sub(other)
+        if isinstance(other, (float, int)):
+            return self.map_sub(other)
+        else:  
+            raise Exception(f"Can't sub tensor with type {type(other)}")
+    
+    def __mul__(self, other):
+        if isinstance(other, Tensor):
+            return self.binary_mul(other)
+        if isinstance(other, (float, int)):
+            return self.map_mul(other)
+        else:  
+            raise Exception(f"Can't mul tensor with type {type(other)}")
+
+    def __pow__(self, other):
+        if isinstance(other, Tensor):
+            return self.binary_pow(other)
+        if isinstance(other, (float,int)):
+            return self.map_pow(other)
+        else:  
+            raise Exception(f"Can't pow tensor with type {type(other)}")
+
+    # these are copy pasted from micrograd
+    def __neg__(self): # -self
+        return self * -1
+
+    def __radd__(self, other): # other + self
+        return self + other
+
+    def __rsub__(self, other): # other - self
+        return other + (-self)
+
+    def __rmul__(self, other): # other * self
+        return self * other
+
+    def __truediv__(self, other): # self / other
+        return self * other**-1
+
+    def __rtruediv__(self, other): # other / self
+        return other * self**-1
+            
 ''' This class takes in a tensor and can represent it as a string '''
 class TensorViewer():
 
@@ -391,7 +442,7 @@ class TensorViewer():
             if len(post) > post_dot: post_dot=len(post)
         col_width = pre_dot+post_dot+1
         return col_width, pre_dot, post_dot
-    
+
     def info(self):
         grad = None if self.tensor.grad == None else self.tensor.grad.data
         return  f"Tensor(" + \
