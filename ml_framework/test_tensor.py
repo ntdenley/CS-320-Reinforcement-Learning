@@ -17,12 +17,11 @@ map_vals = [1,2,3,-33,0.321,.00412,-0.0242]
 
 # testing conditions
 sigfigs = 1
-iters = 100
+iters = 1
 debug = True
+graph = True
 
 # what test to do
-test_indexing = True
-test_stride = True
 test_map = False
 test_binary = False
 test_matmul = True # only set to true is mindims = maxdims = 2
@@ -200,7 +199,8 @@ if test_binary:
 
 if test_matmul:
     print("\n\nMATMUL TEST")
-    # matmul = lambda x: x @ (x.reshape([x.shape[1], x.shape[0]]))
-    add = lambda x: x + x
-    # full_test(matmul, sigfigs, iters, debug)
-    graph_sigfigs(add, iters)
+    matmul = lambda x: x @ (x.reshape([x.shape[1], x.shape[0]]))
+    if graph: 
+        graph_sigfigs(matmul, iters)
+    else:
+        full_test(matmul, sigfigs, iters, debug)
