@@ -2,14 +2,19 @@
 A tensor with automatic differentation
 
 Sources
-- Tutorial for autograd and neural networks: https://www.youtube.com/watch?v=VMj-3S1tku0&t=1s
-- Explanation of pytorch tensor internals: http://blog.ezyang.com/2019/05/pytorch-internals/
-- Inpsiration for architecture and implementation details: https://github.com/tinygrad/tinygrad
-                                                           https://github.com/pytorch/pytorch/blob/main/c10/core/TensorImpl.h
+- Tutorial for autograd and neural networks: 
+    https://www.youtube.com/watch?v=VMj-3S1tku0&t=1s
+- Explanation of pytorch tensor internals: 
+    http://blog.ezyang.com/2019/05/pytorch-internals/
+- Some inspiration for architecture and implementation details: 
+    https://github.com/tinygrad/tinygrad
+    https://github.com/pytorch/pytorch/blob/main/c10/core/TensorImpl.h
 
 Edge cases:
-- When division by 0 is encountered anywhere, an error is thrown.
+- When division by 0 is encountered anywhere, throw an error.
 - When log(0) is encountered in a gradient, we add 1e9 to it.
+- When [neg number] ** [fraction] encountered, throw an exception
+  (we won't support complex numbers).
 '''
 
 import random
@@ -202,7 +207,7 @@ class Tensor:
     # binary 
     def binary_op(self, other, op, _backward):
         if self.shape != other.shape:
-            raise Exception("when performing binary operations between two tensors," + \
+            raise Exception("when performing binary operations between two tensors," 
                             "they must have the same shape")
         new = Tensor.manual_init(self.data.copy(), self.shape)
         op(new, other)
@@ -261,23 +266,47 @@ class Tensor:
     def binary_div(self, other):
         return self.binary_mul(other.map_pow(-1))
 
-    # matrix operations
     def dot(self, other):
         len1 = len(self.shape)
         len2 = len(other.shape)
         if len1 != 1 or len2 != 1:
-            raise Exception(f"Expected two 1D arrays, but got a {len1}D and {len2}D array.")
-        return self.binary_mul(other).sum()
+            raise Exception(f"Expected two 1D tensor, but got a {len1}D and {len2}D array.")
+        return (self * other).sum()
 
-    # still working on this
-    def matmul(self, other):
-        if len(self.shape) != 2 or len(other.shape) != 2:
-            raise Exception("For matmul, only 2d arrays are allowed")
+    # both operands must be exactly 2d arrays, for now.
+    def matmul(self,other):
+        if not isinstance(other, Tensor):
+            raise Exception("Can only perform matrix multiplication on two tensors.")
+        ndim1 = len(self.shape)
+        ndim2 = len(other.shape)
+        if ndim1 != 2 or ndim2 != 2:
+            raise Exception("Expected two 2D tensor, but got a {ndim1}D and {ndim2}D array..")
         if self.shape[1] != other.shape[0]:
-            raise Exception(f"For matmul: {self.shape} x {other.shape} doesn't work")
-        new = Tensor.fill(self.shape, 0)
-        new.init_grad()
+            raise Exception (f"Could not perform matrix operation on {self.shape} x {other.shape}.")
 
+        # the matrix multplication
+        new = Tensor.fill([self.shape[0], other.shape[1]], 0)
+        for outer1 in range(new.shape[0]):
+            for inner in range(self.shape[1]):
+                for outer2 in range(new.shape[1]):
+                    new[outer1,outer2] += self[outer1,inner] * other[inner,outer2]
+
+        # the backward function
+        def _backward(out, inp1, inp2):
+            for outer1 in range(inp1.shape[0]):
+                for inner in range(inp1.shape[1]):
+                    for outer2 in range(inp2.shape[1]):
+                        inp1.grad[outer1, inner] += inp2[inner, outer2] * out.grad[outer1, outer2]
+                        inp2.grad[inner, outer2] += inp1[outer1, inner] * out.grad[outer1, outer2]
+
+        # adding to autograd stack
+        if self.grad != None:
+            new.init_grad()
+            _autograd_stack.append(new)
+            _autograd_stack.append(self)
+            _autograd_stack.append(other)
+            _autograd_stack.append(_backward)
+            _autograd_stack.append(ops.Binary)
         return new
 
     ''' gradient related methods '''
@@ -297,8 +326,6 @@ class Tensor:
         # just to emulate pytorch i guess
         if self.shape != [1]:
             raise Exception("You can only call .backward of tensors with shape [1]")
-
-        # self.stack_trace()
 
         self.grad = Tensor().fill(self.shape, 1)
         while (len(_autograd_stack) > 0):
@@ -336,6 +363,26 @@ class Tensor:
             n *= s
         return n
     
+    ''' indexing '''
+
+    def __getitem__(self, index):
+        if len(self.shape) != len(index):
+            raise Exception("partial index not allowed")
+        ind = 0
+        for i in range(len(index)):
+            ind += index[i] * self.stride[i]
+        return self.data[ind]
+
+    def __setitem__(self, index, newvalue):
+        if self.grad != None:
+            raise Exception("You cannot modify a tensor through indexing after calling.init_grad().")
+        if len(self.shape) != len(index):
+            raise Exception("partial index not allowed")
+        ind = 0 
+        for i in range(len(index)):
+            ind += index[i] * self.stride[i]
+        self.data[ind] = newvalue
+
     ''' wrappers around math functions '''
 
     def __add__(self, other):
@@ -369,8 +416,11 @@ class Tensor:
             return self.map_pow(other)
         else:  
             raise Exception(f"Can't pow tensor with type {type(other)}")
+        
+    def __matmul__(self, other):
+        return self.matmul(other)
 
-    # these are copy pasted from micrograd
+    # these are from https://github.com/karpathy/micrograd/blob/master/micrograd/engine.py
     def __neg__(self): # -self
         return self * -1
 
