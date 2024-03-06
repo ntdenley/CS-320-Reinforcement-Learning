@@ -15,10 +15,23 @@ Edge cases:
 - When log(0) is encountered in a gradient, we add 1e9 to it.
 - When [neg number] ** [fraction] encountered, throw an exception
   (we won't support complex numbers).
+
+todo:
+2. advanced indexing
+3. sum with dims
+4. automatic broadcasting
+5. allow matmul broadcasting 
+
+- reduces: mean, min, max, prod
+- reduce over dims
+- concatenation and stacking
+
+- move to c or something
+- gpu support
 '''
 
 import random
-from math import log
+from math import log, e
 from enum import Enum
 
 ops = Enum('ops', ['Unary', 'Binary', 'Map'])
@@ -67,6 +80,18 @@ class Tensor:
         new.set_stride()
         return new
     
+    @staticmethod
+    def from_numpy(np):
+        new = Tensor()
+        new.data = np.flatten().tolist()
+        new.shape = list(np.shape)
+        new.set_stride()
+        return new
+    
+    @staticmethod
+    def from_torch(t):
+        return Tensor.from_numpy(t)
+
     @staticmethod
     def fill(shape, value):
         new = Tensor()
@@ -154,6 +179,34 @@ class Tensor:
             _autograd_stack.append(ops.Map)
         return new
     
+    def log(self):
+        def op(tensor, value):
+            for i in range(tensor.num_elements()):
+                val = tensor.data[i]
+                if val < 0:
+                    raise Exception("Tried to do log on an element < 0. Do relu first.")
+                elif val == 0:
+                    tensor.data[i] = log(1e9)
+                else:
+                    tensor.data[i] = log(val)
+        def _backward(out, inp, value):
+            for i in range(out.num_elements()):
+                val = inp.data[i]
+                if val == 0:
+                    inp.grad.data[i] += 1e9
+                else:
+                    inp.grad.data[i] += 1/(val) * out.grad.data[i]
+        return self.map(0, op, _backward)
+    
+    def exp(self):
+        def op(tensor, value):
+            for i in range(tensor.num_elements()):
+                tensor.data[i] = e**tensor.data[i]
+        def _backward(out, inp, value):
+            for i in range(out.num_elements()):
+                inp.grad.data[i] = out.data[i] * out.grad.data[i]
+        return self.map(0, op, _backward)
+        
     def relu(self):
         def op(tensor, value):
             for i in range(tensor.num_elements()):
@@ -280,7 +333,7 @@ class Tensor:
         ndim1 = len(self.shape)
         ndim2 = len(other.shape)
         if ndim1 != 2 or ndim2 != 2:
-            raise Exception("Expected two 2D tensor, but got a {ndim1}D and {ndim2}D array..")
+            raise Exception(f"Expected two 2D tensor, but got a {ndim1}D and {ndim2}D array..")
         if self.shape[1] != other.shape[0]:
             raise Exception (f"Could not perform matrix operation on {self.shape} x {other.shape}.")
 
@@ -321,12 +374,8 @@ class Tensor:
         print()
 
     # you can only do this once, since this empties the stack.
+    # the gradient of this node is set to one.
     def backward(self):
-        # why is this here?
-        # just to emulate pytorch i guess
-        if self.shape != [1]:
-            raise Exception("You can only call .backward of tensors with shape [1]")
-
         self.grad = Tensor().fill(self.shape, 1)
         while (len(_autograd_stack) > 0):
             optype = _autograd_stack.pop() 
@@ -452,15 +501,15 @@ class TensorViewer():
         ndim = len(self.tensor.shape)
         col_width, pre_dot, post_dot = self.find_col_width()
         shape = self.tensor.shape.copy()
-        
+
         def recursive_helper(self):
             nonlocal string, _iter, depth, col_width, pre_dot, post_dot, shape
             if (len(shape) == 0): 
                 if (col_width > 7):
                     post = min(max(post_dot, pre_dot), 8)
-                    string += "%*.*e" % (post+7, post, self.tensor.data[_iter])
+                    string += "%*.*e" % (post+8, post, self.tensor.data[_iter])
                 else:
-                    string += "%*.*f" % (col_width+1, post_dot, self.tensor.data[_iter])
+                    string += "%*.*f" % (col_width+2, post_dot, self.tensor.data[_iter])
                 _iter += 1
                 return
             
@@ -475,11 +524,11 @@ class TensorViewer():
             if (string[-1] == ' '):
                 while (string[-1] != ']'): string = string[:-1]
             string += ']'
-            for i in range(ndim - depth): string += '\n'
-            for i in range(depth): string += " "
+            for _ in range(ndim - depth): string += '\n'
+            for _ in range(depth): string += " "
         
         recursive_helper(self)
-        for i in range(ndim): string = string[:-1]
+        for _ in range(ndim): string = string[:-1]
         return string
 
     def find_col_width(self):

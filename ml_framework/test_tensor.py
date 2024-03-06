@@ -16,15 +16,15 @@ multiplier = 10000
 map_vals = [1,2,3,-33,0.321,.00412,-0.0242]
 
 # testing conditions
-sigfigs = 1
+sigfigs = 4
 iters = 1
-debug = True
-graph = True
+debug = False 
+graph = False
 
 # what test to do
-test_map = False
-test_binary = False
-test_matmul = True # only set to true is mindims = maxdims = 2
+test_map = True
+test_binary = True
+test_matmul = False # only set to true is mindims = maxdims = 2
 
 ''' compares two tensors (a of type Tensor and b of type torch.Tensor)
     to see if they have the same shape and elements, within the specified
@@ -203,4 +203,4 @@ if test_matmul:
     if graph: 
         graph_sigfigs(matmul, iters)
     else:
-        full_test(matmul, sigfigs, iters, debug)
+        full_test(lambda x: x.exp(), sigfigs, iters, debug)
