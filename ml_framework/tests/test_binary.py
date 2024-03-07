@@ -8,7 +8,7 @@ import random
 from math import log10
 from torch import zeros
 from torch import Tensor as tTensor
-from ..src.tensor.tensor import Tensor
+from ..src.tensor import Tensor
 
 # testing parameters
 mindims = 2
