@@ -1,4 +1,7 @@
 .conda
 .DS_Store
 gui/swigwin-4.2.0
-ml_framework/__pycache__
+__pycache__/
+.pytest_cache/
+htmlcov/
+.coverage
