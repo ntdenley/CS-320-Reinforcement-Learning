@@ -1,7 +1,6 @@
 .conda
 gui/swigwin-4.2.0
-.DS_Store
 __pycache__/
-data/
-src/
-tests/
+.pytest_cache/
+htmlcov/
+.coverage
