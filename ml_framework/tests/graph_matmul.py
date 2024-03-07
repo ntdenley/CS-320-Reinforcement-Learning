@@ -1,5 +1,6 @@
-from tensor import Tensor
-import torch
+from ..src.tensor import Tensor
+from torch import float64
+from torch import tensor as array
 import random
 from math import log10
 from matplotlib import pyplot as plt
@@ -16,15 +17,15 @@ multiplier = 10000
 map_vals = [1,2,3,-33,0.321,.00412,-0.0242]
 
 # testing conditions
-sigfigs = 4
+sigfigs = 7
 iters = 1
 debug = False 
-graph = False
+graph = True
 
 # what test to do
-test_map = True
-test_binary = True
-test_matmul = False # only set to true is mindims = maxdims = 2
+test_map = False
+test_binary = False
+test_matmul = True # only set to true is mindims = maxdims = 2
 
 ''' compares two tensors (a of type Tensor and b of type torch.Tensor)
     to see if they have the same shape and elements, within the specified
@@ -38,7 +39,7 @@ def compare(a, b, sigfigs, debug=False):
             ("MINE", "PYTORCH", "ERROR", "GOOD SIGFIGS"))
     for i in range(len(a.data)):
         val_a = float(a.data[i])
-        val_b = float(b.storage()[i])
+        val_b = float(b.flatten()[i])
         error = abs(val_a - val_b)
         correct_sigfigs = int(log10(abs(val_a/error))) if error != 0 else 100
         if (abs(val_a) < 1e-9 and abs(val_b) < 1e-9): correct_sigfigs = 100
@@ -49,18 +50,18 @@ def compare(a, b, sigfigs, debug=False):
             return False
     return True
 
-''' generates a random Tensor and torch.Tensor that are almost the same '''
+''' generates a random Tensor and array that are almost the same '''
 def gen_random_tensors():
     ndims = random.randint(mindims,maxdims)
     shape = [random.randint(minshape,maxshape) for i in range(ndims)]
     a = Tensor.rand(shape, -1, 1) * multiplier
-    b = torch.Tensor(a.data)
+    b = array(a.data)
     b = b.reshape(a.shape)
     
     # switching torch.tensor to float64 results in more tests passed for sigfigs=6,
     # which suggests our tensor is more precise (though much less efficient) than 
     # pytorch, so passing tests with 5-6 sig figs is good enough.
-    b = b.to(torch.float64)
+    b = b.to(float64)
 
     return a, b
 
@@ -103,7 +104,7 @@ def graph_sigfigs(f, iters=10):
                 ("MINE", "PYTORCH", "ERROR", "GOOD SIGFIGS"))
         for i in range(len(a.data)):
             val_a = float(a.data[i])
-            val_b = float(b.storage()[i])
+            val_b = float(b.flatten()[i])
             error = abs(val_a - val_b)
             correct_sigfigs = int(log10(abs(val_a/error))) if error != 0 else 100
             if (abs(val_a) < 1e-9 and abs(val_b) < 1e-9): correct_sigfigs = 100

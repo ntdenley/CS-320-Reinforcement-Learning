@@ -147,6 +147,9 @@ class Tensor:
         new.set_stride()
         return new
 
+    def flatten(self):
+        return self.reshape([self.num_elements()])
+
     ''' math operations. The domain is always Tensor -> Tensor '''
     # unary
     def sum(self):
@@ -183,8 +186,8 @@ class Tensor:
         def op(tensor, value):
             for i in range(tensor.num_elements()):
                 val = tensor.data[i]
-                if val < 0:
-                    raise Exception("Tried to do log on an element < 0. Do relu first.")
+                if val < 0: 
+                    raise ValueError("Tried to do log on an element < 0. Do relu first.")
                 elif val == 0:
                     tensor.data[i] = log(1e9)
                 else:
@@ -242,20 +245,17 @@ class Tensor:
         def op(tensor, value):
             for i in range(tensor.num_elements()):
                 if abs(value) < 1 and tensor.data[i] < 0: 
-                    raise Exception("can't take the root of negatives; use .relu() first")
+                    raise ValueError("Cant't take the root of negatives; use .relu() first")
                 if value >= 0:
                     tensor.data[i] = tensor.data[i]**value
                 elif tensor.data[i] != 0:
                     tensor.data[i] = tensor.data[i]**value
                 else:
-                    raise Exception("Division by zero encountered.")
+                    raise ZeroDivisionError("Division by zero encountered in map_pow.")
         def _backward(out, inp, value):
             for i in range(out.num_elements()):
                 inp.grad.data[i] += value * (inp.data[i] ** (value-1)) * out.grad.data[i]
         return self.map(value, op, _backward)
-    
-    def map_div(self, value):
-        return self.map_mul(1/value)
     
     # binary 
     def binary_op(self, other, op, _backward):
@@ -306,14 +306,14 @@ class Tensor:
     def binary_pow(self, other):
         def op(a, b):
             for i in range(a.num_elements()):
+                if a.data[i] < 0 and b.data[i] != 0 and abs(b.data[i]) < 1:
+                    raise ValueError("can't do neg ^ frac; we don't support complex numbers")
                 a.data[i] = a.data[i] ** b.data[i]
         def _backward(out, inp1, inp2):
             for i in range(len(inp1.grad.data)):
-                inp1.grad.data[i] += inp2.data[i] * (inp1.data[i] ** (inp2.data[i]-1)) * out.grad.data[i]
-                if inp1.data[i] != 0:
-                    inp2.grad.data[i] += log(inp1.data[i]) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i]
-                else:
-                    inp2.grad.data[i] += log(1e9) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i] 
+                inp1_data = inp1.data[i] if inp1.data[i] != 0 else 1e-9
+                inp1.grad.data[i] += inp2.data[i] * (inp1_data ** (inp2.data[i]-1)) * out.grad.data[i]
+                inp2.grad.data[i] += log(inp1_data) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i]
         return self.binary_op(other, op, _backward)
 
     def binary_div(self, other):
