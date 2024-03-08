@@ -14,20 +14,22 @@ Edge cases:
 - When division by 0 is encountered anywhere, throw an error.
 - When log(0) is encountered in a gradient, we add 1e9 to it.
 - When [neg number] ** [fraction] encountered, throw an exception
-  (we won't support complex numbers).
 
 todo:
-- transpose
-    - make it work with flatten
-- broadcasting support, just a function
-- unsqueeze
-- incorporate broadcasting into all operations
-
+- implement enough features to make a linear layer
+    - general broadcasting function
+    - unsqueeze
+    - broadcasting for binary addition
 - improve testing
     - add speed benchmarks for some operations
     - string representations
     - factories
+    - broadcasting
+    - test gradient accumulation more thoroughly
     - coverage 100%
+- other
+    - make flatten work with transpose
+    - incorporate broadcasting into all binary operations
 '''
 
 import random
@@ -169,10 +171,9 @@ class Tensor:
             new.grad.set_stride()
         return new
 
-    ''' i need to make this work correctly with flatten
-        by checking to see if the strides are the expected ones,
-        and if not, creating a hard new copy of the storage
-        which encodes the tranpose '''
+    ''' i need to make this work correctly with transpose
+        by checking to see if the incoming strides have been altered,
+        and if so, creating a hard copy '''
     def flatten(self):
         return self.reshape([self.num_elements()])
     
