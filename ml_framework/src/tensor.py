@@ -409,6 +409,7 @@ class Tensor:
                 inp2_grad = args[2]
                 out_grad  = args[3]
                 if inp1_data == 0: return inp2_grad
+                if inp1_data < 1e-9: inp1_data = 1e-9
                 return inp2_grad + log(inp1_data) * (inp1_data ** inp2_data) * out_grad 
             inp1.grad.__apply_op_strided(inp1_backward, [inp1, inp1.grad, inp2, out.grad])
             inp2.grad.__apply_op_strided(inp2_backward, [inp1, inp2, inp2.grad, out.grad])

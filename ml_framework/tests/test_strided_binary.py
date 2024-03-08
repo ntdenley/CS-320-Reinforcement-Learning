@@ -75,16 +75,6 @@ class TestTensor:
 
     @pytest.mark.parametrize("f, name", basic_ops)
     def test_binary_forward(self, f, name):
-        print("\n", name)
-        print("MINE")
-        print(self.a1)
-        print(self.a2)
-        print(f(self.a1, self.a2))
-        print("PYTORCH")
-        print(self.b1)
-        print(self.b2)
-        print(f(self.b1, self.b2))
-
         self.generic_forward(f, name)
     
     @pytest.mark.parametrize("f, name", basic_ops)
