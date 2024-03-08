@@ -14,20 +14,22 @@ Edge cases:
 - When division by 0 is encountered anywhere, throw an error.
 - When log(0) is encountered in a gradient, we add 1e9 to it.
 - When [neg number] ** [fraction] encountered, throw an exception
-  (we won't support complex numbers).
 
 todo:
-2. advanced indexing
-3. sum with dims
-4. automatic broadcasting
-5. allow matmul broadcasting 
-
-- reduces: mean, min, max, prod
-- reduce over dims
-- concatenation and stacking
-
-- move to c or something
-- gpu support
+- implement enough features to make a linear layer
+    - general broadcasting function
+    - unsqueeze
+    - broadcasting for binary addition
+- improve testing
+    - add speed benchmarks for some operations
+    - string representations
+    - factories
+    - broadcasting
+    - test gradient accumulation more thoroughly
+    - coverage 100%
+- other
+    - make flatten work with transpose
+    - incorporate broadcasting into all binary operations
 '''
 
 import random
@@ -120,7 +122,23 @@ class Tensor:
         new.data = tensor.data
         new.shape = tensor.shape.copy()
         new.stride = tensor.stride.copy()
-        new.grad = tensor.grad
+        if tensor.grad == None:
+            new.grad = None
+        else:
+            new.grad = Tensor()
+            new.grad.data = tensor.grad.data
+            new.grad.shape = tensor.grad.shape.copy()
+            new.grad.stride = tensor.grad.stride.copy()
+        # As a quick fix fow now, this kind of hard copies the grad.
+        
+        # The problem is that if you do a soft copy and reshape,
+        # if the soft copy points back to the original grad,
+        # the reshape will modify the original grad's shape.
+        
+        # To avoid this, we need to create a new grad class
+        # which is minimal, and can only be access in conjunction
+        # with a tensor. That way, grad will always have the same
+        # shape/stride as its tensor with no effort or complication.
         return new
     
     @staticmethod
@@ -129,7 +147,10 @@ class Tensor:
         new.data = tensor.data.copy()
         new.shape = tensor.shape.copy()
         new.stride = tensor.stride.copy()
-        new.grad = None if tensor.grad == None else tensor.grad.copy()
+        if tensor.grad == None:
+            new.grad = None
+        else:
+            new.grad = Tensor.hard_copy(tensor.grad)
         return new
 
     ''' ways to look at tensor '''
@@ -145,10 +166,38 @@ class Tensor:
         new = Tensor().soft_copy(self)
         new.shape = shape
         new.set_stride()
+        if new.grad != None:
+            new.grad.shape = new.shape
+            new.grad.set_stride()
         return new
 
+    ''' i need to make this work correctly with transpose
+        by checking to see if the incoming strides have been altered,
+        and if so, creating a hard copy '''
     def flatten(self):
         return self.reshape([self.num_elements()])
+    
+    def transpose(self, dim0=0, dim1=1):
+        new = Tensor().soft_copy(self)
+        # modify new
+        new.shape = self.shape.copy()
+        new.shape[dim0] = self.shape[dim1]
+        new.shape[dim1] = self.shape[dim0]
+        new.stride = self.stride.copy()
+        new.stride[dim0] = self.stride[dim1]
+        new.stride[dim1] = self.stride[dim0]
+        # modify grad
+        if new.grad != None:
+            new.grad.shape = self.shape.copy()
+            new.grad.shape[dim0] = self.shape[dim1]
+            new.grad.shape[dim1] = self.shape[dim0]
+            new.grad.stride = self.stride.copy()
+            new.grad.stride[dim0] = self.stride[dim1]
+            new.grad.stride[dim1] = self.stride[dim0]
+        return new
+
+    def t(self):
+        return self.transpose()
 
     ''' math operations. The domain is always Tensor -> Tensor '''
     # unary
@@ -157,21 +206,19 @@ class Tensor:
         for d in self.data:
             n += d
         new = Tensor.manual_init([n], [1])
-        
         if self.grad != None:
-            new.init_grad()
             def _backward(out, inp):
                 for i in range(len(inp.grad.data)):
                     inp.grad.data[i] += out.grad.data[0]
+            new.init_grad()
             _autograd_stack.append(new)
             _autograd_stack.append(self)
             _autograd_stack.append(_backward)
             _autograd_stack.append(ops.Unary)
-
         return new
     
     def map(self, value, op, _backward):
-        new = Tensor.manual_init(self.data.copy(), self.shape)
+        new = Tensor.hard_copy(self)
         op(new, value)
         if self.grad != None:
             new.init_grad()
@@ -258,12 +305,49 @@ class Tensor:
         return self.map(value, op, _backward)
     
     # binary 
+    # this does self[i] = op(inp1[i], inp2[i]), using strides to index for all invovled tensors
+    def __apply_binary_op_strided(self, inp1, inp2, op):
+        shape = self.shape.copy()
+        index = [0 for _ in shape]
+        def recursive_helper():
+            nonlocal index, shape
+            if (len(shape) == 0):
+                self.__setitem__(index, op(inp1.__getitem__(index), inp2.__getitem__(index)))
+                return
+            n = shape.pop(0)
+            for _ in range(n): 
+                recursive_helper()
+                if len(shape) < len(index):
+                    index_iter = len(index)-len(shape)-1 
+                    index[index_iter] = (index[index_iter] + 1) % (self.shape[index_iter])
+            shape.insert(0,n)
+        recursive_helper()
+
+    def __apply_op_strided(self, op, args):
+        shape = self.shape.copy()
+        index = [0 for _ in shape]
+        def recursive_helper():
+            nonlocal index, shape
+            if (len(shape) == 0):
+                indexed_args = [t.__getitem__(index) for t in args]
+                self.__setitem__(index, op(indexed_args))
+                return
+            n = shape.pop(0)
+            for _ in range(n): 
+                recursive_helper()
+                if len(shape) < len(index):
+                    index_iter = len(index)-len(shape)-1 
+                    index[index_iter] = (index[index_iter] + 1) % (self.shape[index_iter])
+            shape.insert(0,n)
+        recursive_helper()
+
     def binary_op(self, other, op, _backward):
         if self.shape != other.shape:
             raise Exception("when performing binary operations between two tensors," 
                             "they must have the same shape")
         new = Tensor.manual_init(self.data.copy(), self.shape)
-        op(new, other)
+        new.__apply_binary_op_strided(self, other, op)
+        
         if self.grad != None:
             new.init_grad()
             _autograd_stack.append(new)
@@ -275,45 +359,64 @@ class Tensor:
 
     def binary_add(self, other):
         def op(a,b):
-            for i in range(a.num_elements()):
-                a.data[i] += b.data[i]
+            return a + b
         def _backward(out, inp1, inp2):
-            for i in range(len(inp1.grad.data)):
-                inp1.grad.data[i] += out.grad.data[i]
-                inp2.grad.data[i] += out.grad.data[i]
+            inp1.grad.__apply_op_strided(lambda x: x[0] + x[1], [inp1.grad, out.grad])
+            inp2.grad.__apply_op_strided(lambda x: x[0] + x[1], [inp2.grad, out.grad])
+            # for i in range(len(inp1.grad.data)):
+                # inp1.grad.data[i] += out.grad.data[i]
+                # inp2.grad.data[i] += out.grad.data[i]
         return self.binary_op(other, op, _backward)
 
     def binary_sub(self, other):
         def op(a, b):
-            for i in range(a.num_elements()):
-                a.data[i] -= b.data[i]
+            return a - b
         def _backward(out, inp1, inp2):
-            for i in range(len(inp1.grad.data)):
-                inp1.grad.data[i] += out.grad.data[i]
-                inp2.grad.data[i] -= out.grad.data[i]
+            inp1.grad.__apply_op_strided(lambda x: x[0] + x[1], [inp1.grad, out.grad])
+            inp2.grad.__apply_op_strided(lambda x: x[0] - x[1], [inp2.grad, out.grad])
+            # for i in range(len(inp1.grad.data)):
+            #     inp1.grad.data[i] += out.grad.data[i]
+            #     inp2.grad.data[i] -= out.grad.data[i]
         return self.binary_op(other, op, _backward)
 
     def binary_mul(self, other):
         def op(a, b):
-            for i in range(a.num_elements()):
-                a.data[i] *= b.data[i]
+            return a * b
         def _backward(out, inp1, inp2):
-            for i in range(inp1.num_elements()):
-                inp1.grad.data[i] += inp2.data[i] * out.grad.data[i]
-                inp2.grad.data[i] += inp1.data[i] * out.grad.data[i]
+            inp1.grad.__apply_op_strided(lambda x: x[0] + x[1]*x[2], [inp1.grad, inp2, out.grad])
+            inp2.grad.__apply_op_strided(lambda x: x[0] + x[1]*x[2], [inp2.grad, inp1, out.grad])
+            # for i in range(inp1.num_elements()):
+            #     inp1.grad.data[i] += inp2.data[i] * out.grad.data[i]
+            #     inp2.grad.data[i] += inp1.data[i] * out.grad.data[i]
         return self.binary_op(other, op, _backward)
     
     def binary_pow(self, other):
         def op(a, b):
-            for i in range(a.num_elements()):
-                if a.data[i] < 0 and b.data[i] != 0 and abs(b.data[i]) < 1:
-                    raise ValueError("can't do neg ^ frac; we don't support complex numbers")
-                a.data[i] = a.data[i] ** b.data[i]
+            if a < 0 and b != 0 and abs(b) < 1:
+                raise ValueError("can't do neg ^ frac; we don't support complex numbers")
+            return a ** b
         def _backward(out, inp1, inp2):
-            for i in range(len(inp1.grad.data)):
-                inp1_data = inp1.data[i] if inp1.data[i] != 0 else 1e-9
-                inp1.grad.data[i] += inp2.data[i] * (inp1_data ** (inp2.data[i]-1)) * out.grad.data[i]
-                inp2.grad.data[i] += log(inp1_data) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i]
+            def inp1_backward(args):
+                inp1_data = args[0]
+                inp1_grad = args[1]
+                inp2_data = args[2]
+                out_grad  = args[3]
+                if inp1_data == 0: inp1_data = 1e-9
+                return inp1_grad + inp2_data * (inp1_data ** (inp2_data-1)) * out_grad
+            def inp2_backward(args):
+                inp1_data = args[0]
+                inp2_data = args[1]
+                inp2_grad = args[2]
+                out_grad  = args[3]
+                if inp1_data == 0: return inp2_grad
+                if inp1_data < 1e-9: inp1_data = 1e-9
+                return inp2_grad + log(inp1_data) * (inp1_data ** inp2_data) * out_grad 
+            inp1.grad.__apply_op_strided(inp1_backward, [inp1, inp1.grad, inp2, out.grad])
+            inp2.grad.__apply_op_strided(inp2_backward, [inp1, inp2, inp2.grad, out.grad])
+            # for i in range(len(inp1.grad.data)):
+                # inp1_data = inp1.data[i] if inp1.data[i] != 0 else 1e-9
+                # inp1.grad.data[i] += inp2.data[i] * (inp1_data ** (inp2.data[i]-1)) * out.grad.data[i]
+                # inp2.grad.data[i] += log(inp1_data) * (inp1.data[i] ** inp2.data[i]) * out.grad.data[i]
         return self.binary_op(other, op, _backward)
 
     def binary_div(self, other):
@@ -365,6 +468,7 @@ class Tensor:
     ''' gradient related methods '''
     def init_grad(self):
         self.grad = Tensor().fill(self.shape, 0)
+        self.grad.set_stride()
 
     def stack_trace(self):
         print("STACK TRACE (this is the bottom):")
@@ -496,28 +600,31 @@ class TensorViewer():
 
     def to_string(self):
         string = ""
-        _iter = 0
         depth = 0
         ndim = len(self.tensor.shape)
         col_width, pre_dot, post_dot = self.find_col_width()
         shape = self.tensor.shape.copy()
+        index = [0 for s in shape]
 
         def recursive_helper(self):
-            nonlocal string, _iter, depth, col_width, pre_dot, post_dot, shape
+            nonlocal string, index, depth, col_width, pre_dot, post_dot, shape
             if (len(shape) == 0): 
                 if (col_width > 7):
                     post = min(max(post_dot, pre_dot), 8)
-                    string += "%*.*e" % (post+8, post, self.tensor.data[_iter])
+                    string += "%*.*e" % (post+8, post, self.tensor.__getitem__(index))
                 else:
-                    string += "%*.*f" % (col_width+2, post_dot, self.tensor.data[_iter])
-                _iter += 1
+                    string += "%*.*f" % (col_width+2, post_dot, self.tensor.__getitem__(index))
                 return
             
             string += "["
             depth += 1
             n = shape.pop(0)
 
-            for _ in range(n): recursive_helper(self)
+            for _ in range(n): 
+                recursive_helper(self)
+                if len(shape) < len(index):
+                    index_iter = len(index)-len(shape)-1 
+                    index[index_iter] = (index[index_iter] + 1) % (self.tensor.shape[index_iter])
             
             shape.insert(0,n)
             depth -= 1

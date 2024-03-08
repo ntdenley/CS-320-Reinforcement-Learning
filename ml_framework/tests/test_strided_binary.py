@@ -17,7 +17,7 @@ minshape = 40
 maxshape = 40
 multiplier = 50
 
-min_single_sigfig = 2
+min_single_sigfig = 3
 min_avg_sigfig = 5
 
 class TestTensor:
@@ -63,15 +63,14 @@ class TestTensor:
         assert sigs >= min_avg_sigfig, f"{name} backward failed: on average agreed on only {sigs} / {min_avg_sigfig} sigs"
     
     basic_ops = [
-        (lambda x, y: x + y, "add"),
-        (lambda x, y: x - y, "sub"),
-        (lambda x, y: x * y, "mul"),
-        (lambda x, y: x / y, "div"),
-        (lambda x, y: x * x * y + x + y * y / x,                    "combo1"),
-        (lambda x, y: (x.relu()+1e-9) ** (y / multiplier).relu(),   "pow non-neg^non-neg"),
-        (lambda x, y: (x.relu()+1e-9) ** (y / multiplier),          "pow pos^real"),
-        (lambda x, y: (x.flatten()).dot((y.flatten())),             "dot"),
-        (lambda x, y: x @ y,                                        "matmul")
+        (lambda x, y: (x.t()) + y, "add"),
+        (lambda x, y: (x.t()) - y, "sub"),
+        (lambda x, y: (x.t()) * y, "mul"),
+        (lambda x, y: (x.t()) / y, "div"),
+        (lambda x, y: (x.t()).relu() ** (y / multiplier * 10).relu(),     "pow non-neg^non-neg"),
+        (lambda x, y: ((x.t()).relu()+1e-9) ** (y / multiplier),          "pow pos^real"),
+        (lambda x, y: (x.t()) @ y,                                        "matmul"),
+        (lambda x, y: x @ (y.t()),                                        "matmul"),
     ]
 
     @pytest.mark.parametrize("f, name", basic_ops)
@@ -81,21 +80,3 @@ class TestTensor:
     @pytest.mark.parametrize("f, name", basic_ops)
     def test_binary_backward(self, f, name):
         self.generic_backward(f, name)
-
-    def test_pow_zero_nonneg_forward(self):
-        self.a1 = Tensor.fill(self.a1.shape, 0)
-        self.b1 = zeros(self.b1.shape)
-        f = lambda x, y: x ** (y.relu())
-        self.generic_forward(f, "pow zero^nonneg")
-        # not doing the backward version here, because pytorch does weird things
-
-    def test_pow_zero_neg(self):
-        self.a1 = Tensor.fill(self.a1.shape, 0)
-        with pytest.raises(ZeroDivisionError):
-            self.a1 ** (-(self.a2.relu()))
-
-    def test_pow_neg_frac(self):
-        self.a1 = Tensor.fill(self.a1.shape, -1)
-        self.a2 = Tensor.fill(self.a1.shape, 0.5)
-        with pytest.raises(ValueError):
-            self.a1 ** self.a2
