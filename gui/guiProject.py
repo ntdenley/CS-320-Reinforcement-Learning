@@ -1,17 +1,19 @@
 '''
-    Imports & Declarations
-        - Gym (Gymnasium):      OpenAI Environment Library 
-        - Pygame:               Multi Media Game Creation Library
-        - Numpy:                Numerical Operation Library
-        - tkinter (tk, ttk):    GUI Library
-        - Pillow:               Rendering Library
+Imports & Declarations
+- Gym (Gymnasium): OpenAI Environment Library
+- Pygame: Multi Media Game Creation Library
+- Numpy: Numerical Operation Library
+- tkinter (tk, ttk): GUI Library
+- Pillow: Rendering Library
 '''
-import gym                
+import gym
 import pygame
 import numpy as np
-import tkinter as tk        
+import tkinter as tk
 from tkinter import ttk
-from PIL import Image, ImageTk         
+from PIL import Image, ImageTk
+from matplotlib import pyplot as plt
+from gymplots import aiPlot  # Import aiPlot class from gymplots.py
 
 '''
     GUI Class:
@@ -33,8 +35,16 @@ class environmentGUI:
         self.environmentLabel.grid(row = 0, column = 0, padx = 10, pady = 10)
 
         #   Available OpenAI gym environments (will add more in the future)
-        self.environmentIDs = ['LunarLander-v2', "CarRacing-v2", "BipedalWalker-v3"]
-        self.maxSteps = 100 
+        self.environmentIDs = [
+            #   Classic Control
+            'Acrobot-v1', 'CartPole-v1', 'MountainCarContinuous-v0', 'MountainCar-v0', 'Pendulum-v1',
+            #   Box2D
+            'LunarLander-v2', 'CarRacing-v2', 'BipedalWalker-v3',
+            #   Toy Text
+            'Blackjack-v1', 'Taxi-v3', 'CliffWalking-v0', 'FrozenLake-v1'
+        ]
+
+        self.maxSteps = 200
 
         #   String variable to store selected environment
         self.selectedEnvironment = tk.StringVar()
@@ -45,7 +55,11 @@ class environmentGUI:
 
         #   Button to load selected environment
         self.loadButton = ttk.Button(root, text = "Load Environment", command = self.loadEnvironment)
-        self.loadButton.grid(row = 1, column = 0, columnspan = 2, pady = 10)
+        self.loadButton.grid(row = 1, column = 0, pady = 10)
+
+        #   Button to display gymplots
+        self.plotButton = ttk.Button(root, text = 'Plot', command = self.displayPlots)
+        self.plotButton.grid(row = 1, column = 1, columnspan = 1, pady = 10)
 
         #   Initializes canvas size based on GUI size
         initialWidth = 800
@@ -53,17 +67,18 @@ class environmentGUI:
         self.canvas = tk.Canvas(root, width = initialWidth, height = initialHeight)
         self.canvas.grid(row = 2, column = 0, columnspan = 2, pady = 10)
 
-        #   Binds the window resize event to resizeWindow function
+        #   Binds the configure root window event to resizeWindow function
         root.bind('<Configure>', self.resizeWindow)
 
+
     '''
-        Function for dynamically updating the canvas size based off the of the calculated window size. 
+        Function for dynamically updating the canvas size based off the calculated window size. 
     '''
     def resizeWindow(self, event):
         updateWidth = event.width - 150
         updateHeight = event.height - 150
         self.canvas.config(width = updateWidth, height = updateHeight)
-        
+
     '''
         Function for rendering the chosen gym environment.
     '''
@@ -74,13 +89,16 @@ class environmentGUI:
         #   Gets initial state
         state = environment.reset()
         done = False
-        stepCounter = 0  
+        stepCounter = 0
 
-        #   For each step in the environment, it rerenders the environment, and increments the step counter
-        #       Once the maximum steps limit has been reached,  it closes the environment window and releases all resources that were used
         while not done and stepCounter < maxSteps:
-            action = environment.action_space.sample()  
-            observation, reward, done, _, info = environment.step(action)  
+            action = environment.action_space.sample()
+            observation, reward, done, _, info = environment.step(action)
+
+            # Add the following lines to update the plot
+            self.plot.update(stepCounter, reward)  # You might need to adjust the arguments based on your data
+            plt.pause(0.001)  # Ensure the plot updates in real-time
+
             environment.render()
             stepCounter += 1
         pygame.quit()
@@ -101,7 +119,7 @@ class environmentGUI:
         if environmentID not in self.environmentIDs:
             self.errorMessage("Invalid Environment Selection")
             return
-        
+
         #   Attempt to create the selected environment
         try:
             environment = gym.make(environmentID, render_mode="human")
@@ -110,8 +128,24 @@ class environmentGUI:
             return
 
         #   Renders a new version of the selected environment
-        environment.reset();
+        environment.reset()
         self.renderEnvironment(environment, self.maxSteps)
+
+    '''
+        Function for displaying the plots from gymplots.py
+    '''
+    def displayPlots(self):
+        #   Create instance of AI Plot
+        self.plot = aiPlot(step_value= 10, calculate_avg= True)
+
+        #   Adds data to plot
+        for step in range(100):
+            reward = np.random.normal(0, 1)
+            self.plot.update(step, reward)
+            plt.pause(0.001)
+
+        #   Display Plot
+        self.plot.show()
 
     '''
         Function for prompting the user when errors occur.
@@ -122,12 +156,12 @@ class environmentGUI:
         errorWindow.title("Uh Oh")
 
         #   Label to display error message
-        errorLabel = ttk.Label(errorWindow, text = message)
-        errorLabel.pack(padx = 10, pady = 10)
+        errorLabel = ttk.Label(errorWindow, text=message)
+        errorLabel.pack(padx=10, pady=10)
 
         #   Button to close error window
-        closeButton = ttk.Button(errorWindow, text = "Close", command = errorWindow.destroy)
-        closeButton.pack(pady = 10)
+        closeButton = ttk.Button(errorWindow, text="Close", command=errorWindow.destroy)
+        closeButton.pack(pady=10)
 
 '''
     Main Function
