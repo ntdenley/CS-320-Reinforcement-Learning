@@ -1,3 +1,4 @@
+Box2D==2.3.2
 box2d-py==2.3.5
 cloudpickle==3.0.0
 contourpy==1.2.0
@@ -8,11 +9,14 @@ gymnasium==0.29.1
 kiwisolver==1.4.5
 matplotlib==3.8.2
 numpy==1.26.3
+pygame==2.5.2
+setuptools==69.1.0
+tk==0.1.0
 packaging==23.2
 pillow==10.2.0
-pygame==2.5.2
 pyparsing==3.1.1
 python-dateutil==2.8.2
 six==1.16.0
 swig==4.1.1.post1
 typing_extensions==4.9.0
+wheel==0.42.0 
