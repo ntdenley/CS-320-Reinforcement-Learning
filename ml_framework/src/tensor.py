@@ -141,9 +141,33 @@ class Tensor:
         # shape/stride as its tensor with no effort or complication.
         return new
     
+    # if the input tensor was broadcasted, this will create a copy
+    # with the actual shape broadcasted tensor.
     @staticmethod
     def hard_copy(tensor):
+
+        # def recursive_helper():
+        #     nonlocal index, shape
+        #     if (len(shape) == 0):
+        #         self.__setitem__(index, op(inp1.__getitem__(index), inp2.__getitem__(index)))
+        #         return
+        #     n = shape.pop(0)
+        #     for _ in range(n): 
+        #         recursive_helper()
+        #         if len(shape) < len(index):
+        #             index_iter = len(index)-len(shape)-1 
+        #             index[index_iter] = (index[index_iter] + 1) % (self.shape[index_iter])
+        #     shape.insert(0,n)
+        # recursive_helper()
+
+
         new = Tensor()
+        new.shape = tensor.shape.copy()
+        new.set_stride()
+        new.data = [0 for _ in range(new.num_elements())]
+        for i in range(new.num_elements()):
+            new.data.append(tensor[])
+
         new.data = tensor.data.copy()
         new.shape = tensor.shape.copy()
         new.stride = tensor.stride.copy()
@@ -198,6 +222,57 @@ class Tensor:
 
     def t(self):
         return self.transpose()
+
+    '''
+    how broadcasting will work
+    1. generate a new shape to which both tensors can broadcast (gen_broadcast_shape :: Tensor->Tensor->Shape)
+    2. broadcast both tensors to that shape (broadcast_to :: Tensor -> shape -> Tensor)
+    3. perform the operation
+    '''
+    def gen_broadcast_shape(self, other):
+        if not isinstance(other, Tensor):
+            if isinstance(other, (int, float)):
+                other = Tensor.from_list([other])
+            else:
+                raise ValueError(f"you can only broadcast between tensors")
+        
+        # check if they are broadcastable
+        for ss, os in zip(reversed(self.shape), reversed(other.shape)):
+            if (ss != os and os != 1 and ss != 1):
+                raise Exception(f"cannot broadcast: {self.shape} and {other.shape}; {ss} and {os} != 1 and do not match")
+
+        # generate the broadcasting shape
+        if len(self.shape) > len(other.shape):
+            larger = self.shape.copy()
+            smaller = other.shape.copy()
+        else:
+            larger = other.shape.copy()
+            smaller = self.shape.copy()
+
+        while (len(larger) > len(smaller)):
+            smaller.insert(0,1)
+
+        for i in range(len(larger)):
+            if larger[i] != smaller[i]:
+                if larger[i] == 1:
+                    larger[i] = smaller[i]
+
+        return larger
+
+    # assuming shape is correct.
+    def broadcast_to(self, shape):
+        new = Tensor.soft_copy(self)
+        for i in range(len(shape) - len(new.shape)):
+            new.shape.insert(i, shape[i])
+            new.stride.insert(i,0)
+        for i in range(len(shape)):
+            if shape[i] != new.shape[i]:
+                new.shape[i] = shape[i]
+                new.stride[i] = 0
+        if new.grad != None:
+            new.grad.shape = new.shape
+            new.grad.stride = new.stride
+        return new
 
     ''' math operations. The domain is always Tensor -> Tensor '''
     # unary
@@ -342,17 +417,23 @@ class Tensor:
         recursive_helper()
 
     def binary_op(self, other, op, _backward):
-        if self.shape != other.shape:
-            raise Exception("when performing binary operations between two tensors," 
-                            "they must have the same shape")
-        new = Tensor.manual_init(self.data.copy(), self.shape)
-        new.__apply_binary_op_strided(self, other, op)
+        t1, t2 = self, other
+        if t1.shape != t2.shape:
+            new_shape = t1.gen_broadcast_shape(t2)
+            t1 = t1.broadcast_to(new_shape)
+            t2 = t2.broadcast_to(new_shape)
+
+        new = Tensor()
         
-        if self.grad != None:
+        new = Tensor.manual_init(t1.data.copy(), t1.shape)
+ 
+        new.__apply_binary_op_strided(t1, t2, op)
+        
+        if t1.grad != None or t2.grad != None:
             new.init_grad()
             _autograd_stack.append(new)
-            _autograd_stack.append(self)
-            _autograd_stack.append(other)
+            _autograd_stack.append(t1)
+            _autograd_stack.append(t2)
             _autograd_stack.append(_backward)
             _autograd_stack.append(ops.Binary)
         return new

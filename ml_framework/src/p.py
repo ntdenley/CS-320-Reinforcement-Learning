@@ -1,18 +1,9 @@
 from tensor import Tensor
 
-a = Tensor.fill([2,2],0)
-b = Tensor.fill([2,2],0.002)
+# a = Tensor.fill([1,1,3], 1)
+# b = Tensor.fill([5,4,1], 1)
 
-a.init_grad()
-b.init_grad()
+a = Tensor.fill([1], 1)
+b = Tensor.fill([5], 1)
 
-f = lambda x, y: x ** y
-
-out = f(a,b)
-out.sum().backward()
-
-# print(a)
-print(b)
-
-# print(a.grad)
-print(b.grad)
+a+b
