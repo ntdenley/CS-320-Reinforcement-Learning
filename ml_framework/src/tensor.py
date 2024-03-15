@@ -145,32 +145,26 @@ class Tensor:
     # with the actual shape broadcasted tensor.
     @staticmethod
     def hard_copy(tensor):
-
-        # def recursive_helper():
-        #     nonlocal index, shape
-        #     if (len(shape) == 0):
-        #         self.__setitem__(index, op(inp1.__getitem__(index), inp2.__getitem__(index)))
-        #         return
-        #     n = shape.pop(0)
-        #     for _ in range(n): 
-        #         recursive_helper()
-        #         if len(shape) < len(index):
-        #             index_iter = len(index)-len(shape)-1 
-        #             index[index_iter] = (index[index_iter] + 1) % (self.shape[index_iter])
-        #     shape.insert(0,n)
-        # recursive_helper()
-
-
+        shape = tensor.shape.copy()
+        index = [0 for _ in shape]
+        data = []
+        def recursive_helper():
+            nonlocal index, shape, data
+            if (len(shape) == 0):
+                data.append(tensor.__getitem__(index))
+                return
+            n = shape.pop(0)
+            for _ in range(n): 
+                recursive_helper()
+                if len(shape) < len(index):
+                    index_iter = len(index)-len(shape)-1 
+                    index[index_iter] = (index[index_iter] + 1) % (tensor.shape[index_iter])
+            shape.insert(0,n)
+        recursive_helper()
         new = Tensor()
         new.shape = tensor.shape.copy()
         new.set_stride()
-        new.data = [0 for _ in range(new.num_elements())]
-        for i in range(new.num_elements()):
-            new.data.append(tensor[])
-
-        new.data = tensor.data.copy()
-        new.shape = tensor.shape.copy()
-        new.stride = tensor.stride.copy()
+        new.data = data
         if tensor.grad == None:
             new.grad = None
         else:
@@ -239,7 +233,7 @@ class Tensor:
         # check if they are broadcastable
         for ss, os in zip(reversed(self.shape), reversed(other.shape)):
             if (ss != os and os != 1 and ss != 1):
-                raise Exception(f"cannot broadcast: {self.shape} and {other.shape}; {ss} and {os} != 1 and do not match")
+                raise ValueError(f"cannot broadcast: {self.shape} and {other.shape}; {ss} and {os} != 1 and do not match")
 
         # generate the broadcasting shape
         if len(self.shape) > len(other.shape):
@@ -422,13 +416,10 @@ class Tensor:
             new_shape = t1.gen_broadcast_shape(t2)
             t1 = t1.broadcast_to(new_shape)
             t2 = t2.broadcast_to(new_shape)
-
-        new = Tensor()
-        
-        new = Tensor.manual_init(t1.data.copy(), t1.shape)
- 
+        new = Tensor.hard_copy(t1)
+        new.grad = None
         new.__apply_binary_op_strided(t1, t2, op)
-        
+
         if t1.grad != None or t2.grad != None:
             new.init_grad()
             _autograd_stack.append(new)

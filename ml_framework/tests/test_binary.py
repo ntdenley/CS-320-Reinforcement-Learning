@@ -1,5 +1,5 @@
 '''
-Tests binary operations
+Tests binary operations with transpose
 - +, -, *, /, **, dot, matmul
 '''
 
