@@ -1,6 +1,6 @@
 '''
 Tests map operation
-- sum, log, exp, relu, +, -, *, /, **
+- sum, log, exp, relu, max, softmax, +, -, *, /, **
 '''
 
 import pytest
@@ -30,6 +30,7 @@ class TestTensor:
 
     # are these two tensors equal?
     def tensors_eq(self, a, b, single_sig_threshold=min_single_sigfig):
+        if len(b.shape) == 0: b = b.reshape([1]) # this needs to be here because pytorch handles scalar tensors as 0 dimensional, whereas i say they are 1d
         assert len(a.shape) == len(b.shape), f"ndim mismatch: a.ndim = {len(a.shape)}, b.ndim = {len(b.shape)}"
         assert a.shape == list(b.shape), f"Shape mismatch: a.shape = {a.shape}, b.shape = {b.shape}"
         sig_history = []
@@ -63,8 +64,10 @@ class TestTensor:
     basic_ops = [
         (lambda x: x.sum().reshape([1]),       "sum"),
         (lambda x: x.exp(),                    "exp"),
-        (lambda x: (x.relu()+1e-9).log(),       "normal log"),
+        (lambda x: (x.relu()+1e-9).log(),      "normal log"),
         (lambda x: x.relu(),                   "relu"),
+        (lambda x: x.softmax(0),               "softmax0"),
+        (lambda x: x.softmax(1),               "softmax1"),
         (lambda x: x + 100,                    "map add"),
         (lambda x: x - 0.00321,                "map sub"),
         (lambda x: -x,                         "neg"),
@@ -73,8 +76,8 @@ class TestTensor:
         (lambda x: x * -0.0031,                "neg map mul"),
         (lambda x: x * 0,                      "zero map mul"),
         (lambda x: x.relu() ** 3.1415,         "relu pow pi"),
-        (lambda x: (x.relu()+1e-9) ** 0,        "relu pow 0"),
-        (lambda x: (x+1e-9) ** -3,              "pow neg three"),
+        (lambda x: (x.relu()+1e-9) ** 0,       "relu pow 0"),
+        (lambda x: (x+1e-9) ** -3,             "pow neg three"),
         (lambda x: x / 3,                      "map div"),
         (lambda x: x / -0.004,                 "neg map div"),
         (lambda x: 1e10 / x,                   "large div by x")
@@ -118,3 +121,65 @@ class TestTensor:
     def test_div_by_zero(self):
         with pytest.raises(ZeroDivisionError):
             self.a / 0
+
+    ''' max tests '''
+    max_ops = [
+        (lambda x: x.max(), "max"),
+    ]
+
+    @pytest.mark.parametrize("f, name", max_ops)
+    def test_max_forward(self, f, name):
+        # Test max in the forward direction
+        self.generic_forward(f, name)
+
+    @pytest.mark.parametrize("f, name", max_ops)
+    def test_max_backward(self, f, name):
+        # Test max in the backward direction
+        self.generic_backward(f, name)
+
+    @pytest.mark.parametrize("f, name", max_ops)
+    def test_max_multiple_forward(self, f, name):
+        # Test max in the forward direction
+        self.a = Tensor([1,1,2,3,5,4,6,2,3,6]).reshape([5,2])
+        self.b = tTensor(self.a.data).reshape(self.a.shape)
+        self.generic_forward(f, name)
+
+    @pytest.mark.parametrize("f, name", max_ops)
+    def test_max_multiple_backward(self, f, name):
+        # Test max in the backward direction
+        self.a = Tensor([1,1,2,3,5,4,6,2,3,6]).reshape([5,2])
+        self.b = tTensor(self.a.data).reshape(self.a.shape)
+        self.generic_backward(f, name)
+
+    ''' sum tests; made by chatGPT, modified by me '''
+    @pytest.mark.parametrize("axis, keepdim", [
+        (0, False),
+        (0, True),
+        (1, False),
+        (1, True),
+        (None, False),
+    ])
+    def test_sum_forward(self, axis, keepdim):
+        a_sum = self.a.sum(axis=axis, keepdim=keepdim)
+        b_sum = self.b.sum(dim=axis, keepdim=keepdim)
+        sigs, result = self.tensors_eq(a_sum, b_sum)
+        assert result, f"Sum forward failed on axis={axis}, keepdim={keepdim}: some element agreed on only {sigs} / {min_single_sigfig} sigs"
+        assert sigs >= min_avg_sigfig, f"Sum forward failed on axis={axis}, keepdim={keepdim}: on average agreed on only {sigs} / {min_avg_sigfig} sigs"
+    
+    @pytest.mark.parametrize("axis, keepdim", [
+        (0, False),
+        (0, True),
+        (1, False),
+        (1, True),
+        (None, False),
+    ])
+    def test_sum_backward(self, axis, keepdim):
+        self.a.init_grad() 
+        self.b.requires_grad = True
+        a_sum = self.a.sum(axis, keepdim=keepdim) + 123
+        b_sum = self.b.sum(axis, keepdim=keepdim) + 123
+        a_sum.sum().backward()
+        b_sum.sum().backward()
+        sigs, result = self.tensors_eq(self.a.grad, self.b.grad)
+        assert result, f"Sum backward failed on axis={axis}, keepdim={keepdim}: some element agreed on only {sigs} / {min_single_sigfig} sigs"
+        assert sigs >= min_avg_sigfig, f"Sum backward failed on axis={axis}, keepdim={keepdim}: on average agreed on only {sigs} / {min_avg_sigfig} sigs"

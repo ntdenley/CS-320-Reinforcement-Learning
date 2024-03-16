@@ -17,7 +17,7 @@ minshape = 40
 maxshape = 40
 multiplier = 50
 
-min_single_sigfig = 3
+min_single_sigfig = 2
 min_avg_sigfig = 5
 
 class TestTensor:

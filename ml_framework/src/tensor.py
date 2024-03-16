@@ -15,21 +15,12 @@ Edge cases:
 - When log(0) is encountered in a gradient, we add 1e9 to it.
 - When [neg number] ** [fraction] encountered, throw an exception
 
-todo:
-- implement enough features to make a linear layer
-    - general broadcasting function
-    - unsqueeze
-    - broadcasting for binary addition
-- improve testing
-    - add speed benchmarks for some operations
-    - string representations
-    - factories
-    - broadcasting
-    - test gradient accumulation more thoroughly
-    - coverage 100%
-- other
-    - make flatten work with transpose
-    - incorporate broadcasting into all binary operations
+I have to rewrite all of this, because it's almost impossible to 
+implement softmax backward the way this is
+- Create a new BaseTensor class which is just a numpy array, seperate 
+    from gradient
+- Have Grad and Tensor inherit from this, adding autograd and lazy
+    eval capabilities
 '''
 
 import random
@@ -41,11 +32,17 @@ _autograd_stack = []
 
 class Tensor:
 
-    def __init__(self):
+    def __init__(self, passed_list=None):
         self.data = None
         self.shape = None
         self.stride = None
         self.grad = None
+        if passed_list != None:
+            t = Tensor.from_list(passed_list)
+            self.shape = t.shape
+            self.data = t.data
+            self.stride = t.stride
+            self.grad = t.grad
 
     ''' initialization factory methods '''
     @staticmethod
@@ -218,7 +215,7 @@ class Tensor:
         return self.transpose()
 
     '''
-    how broadcasting will work
+    how broadcasting works
     1. generate a new shape to which both tensors can broadcast (gen_broadcast_shape :: Tensor->Tensor->Shape)
     2. broadcast both tensors to that shape (broadcast_to :: Tensor -> shape -> Tensor)
     3. perform the operation
@@ -263,29 +260,126 @@ class Tensor:
             if shape[i] != new.shape[i]:
                 new.shape[i] = shape[i]
                 new.stride[i] = 0
+        while len(new.shape) > len(new.stride):
+            new.stride.insert(0,0)
         if new.grad != None:
             new.grad.shape = new.shape
             new.grad.stride = new.stride
         return new
 
+    def unsqueeze(self, dim):
+        if dim > len(self.shape):
+            raise ValueError(f"unsqueeze: cannot insert at dim {dim}; shape {self.shape} has only {len(self.shape)} dims")
+        new_shape = self.shape.copy()
+        new_shape.insert(dim, 1)
+        return self.broadcast_to(new_shape)
+
+    ''' dear god... what have i done
+        this returns tensors that iterate over the dim
+        returns a list of tensors
+    '''
+    def iterate_over_dim(self, dim):
+        if dim >= len(self.shape):
+            raise ValueError(f"axis {dim} to big for shape {self.shape}")
+        new_shape = self.shape[:dim] + self.shape[dim+1:]
+
+        def recursive_helper(i):
+            nonlocal index, shape, data
+            if (len(shape) == 0):
+                ind_copy = index.copy()
+                ind_copy.insert(dim, i)
+                data.append(self.__getitem__(ind_copy))
+                return
+            n = shape.pop(0)
+            for _ in range(n): 
+                # print(shape, index)
+                recursive_helper(i)
+                if len(shape) < len(index):
+                    index_iter = len(index)-len(shape)-1 
+                    index[index_iter] = (index[index_iter] + 1) % (new_shape[index_iter])
+            shape.insert(0,n)
+
+        ret = []
+        for i in range(self.shape[dim]):
+            shape = new_shape.copy()
+            index = [0 for _ in shape]
+            data = []
+            recursive_helper(i)
+            new = Tensor()
+            new.shape = new_shape
+            new.set_stride()
+            new.data = data
+            new.grad = None
+            ret.append(new)
+        return ret
+
     ''' math operations. The domain is always Tensor -> Tensor '''
     # unary
-    def sum(self):
-        n = 0
-        for d in self.data:
-            n += d
-        new = Tensor.manual_init([n], [1])
+    def sum(self, axis=None, keepdim=False):
+        if axis == None:
+            n = 0
+            for d in self.data:
+                n += d
+            new = Tensor.manual_init([n], [1])
+            if self.grad != None:
+                def _backward(out, inp):
+                    for i in range(len(inp.grad.data)):
+                        inp.grad.data[i] += out.grad.data[0]
+                new.init_grad()
+                _autograd_stack.append(new)
+                _autograd_stack.append(self)
+                _autograd_stack.append(_backward)
+                _autograd_stack.append(ops.Unary)
+            return new
+        else:
+            l = self.iterate_over_dim(axis)
+            new = l[0]
+            for i in range(1,len(l)):
+                new += l[i]
+            def _backward(out, inp):
+                inp.grad += out.grad
+            if keepdim:
+                new.shape.insert(axis,1)
+                new = new.reshape(new.shape)
+            if self.grad != None:
+                new.init_grad()
+                _autograd_stack.append(new)
+                _autograd_stack.append(self)
+                _autograd_stack.append(_backward)
+                _autograd_stack.append(ops.Unary)
+            return new
+
+    def max(self):
+        m = -float('inf')
+        m_index = []
+        for i in range(self.num_elements()):
+            d = self.data[i]
+            if d > m: 
+                m = d
+                m_index = [i]
+            elif d == m:
+                m_index.append(i)
+        new = Tensor.manual_init([m], [1])
         if self.grad != None:
             def _backward(out, inp):
-                for i in range(len(inp.grad.data)):
-                    inp.grad.data[i] += out.grad.data[0]
+                for i in range(inp.num_elements()):
+                    if i in m_index:
+                        inp.grad.data[i] += out.grad.data[0] / len(m_index)
             new.init_grad()
             _autograd_stack.append(new)
             _autograd_stack.append(self)
             _autograd_stack.append(_backward)
             _autograd_stack.append(ops.Unary)
         return new
-    
+
+    def softmax(self, dim):
+        temp = Tensor.hard_copy(self.grad)
+        self.grad = None
+        out = self.exp() / self.exp().sum(axis=dim, keepdim=True)
+        self.grad = temp
+        out.grad = temp
+        return out
+
     def map(self, value, op, _backward):
         new = Tensor.hard_copy(self)
         op(new, value)
