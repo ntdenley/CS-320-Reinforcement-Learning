@@ -1,5 +1,0 @@
-Testing dependencies:
-- torch
-- pytest
-- pytest-benchmark
-- coverage (optional)

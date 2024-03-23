@@ -1,0 +1,1 @@
+from .hehe import func
