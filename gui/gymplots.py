@@ -62,3 +62,6 @@ class aiPlot():
         
         # Increment frame counter
         self.frame += 1
+
+    def close(self):
+        plt.close()
