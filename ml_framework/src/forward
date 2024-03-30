@@ -1,0 +1,113 @@
+// Lazy Computation Graph
+digraph {
+	4326253008 [label="
+optype = Inplace.Sum
+shape  = ()
+data   = 128.0
+requires_grad = False
+grad = <graph.ComputeNode object at 0x101dd62d0>" color=magenta style=filled]
+	4304583952 [label="
+optype = Inplace.Multiply
+shape  = [4, 4]
+data   = [[8. 8. 8. 8.]
+ [8. 8. 8. 8.]
+ [8. 8. 8. 8.]
+ [8. 8. 8. 8.]]
+requires_grad = False
+grad = <graph.ComputeNode object at 0x1014b13d0>
+dtype  = float32" color=lightgrey style=filled]
+	4304637520 [label="
+optype = Alloc.Full
+shape  = [4, 4]
+data   = [[2. 2. 2. 2.]
+ [2. 2. 2. 2.]
+ [2. 2. 2. 2.]
+ [2. 2. 2. 2.]]
+requires_grad = False
+grad = <graph.ComputeNode object at 0x101dd7b10>
+dtype  = float32" color=lightgreen style=filled]
+	4326259472 [label="
+optype = Inplace.Copy
+shape  = [4, 4]
+data   = [[4. 4. 4. 4.]
+ [4. 4. 4. 4.]
+ [4. 4. 4. 4.]
+ [4. 4. 4. 4.]]
+requires_grad = False
+grad = None" color=red style=filled]
+	4326258704 [label="
+optype = Inplace.Multiply
+shape  = [4, 4]
+data   = [[4. 4. 4. 4.]
+ [4. 4. 4. 4.]
+ [4. 4. 4. 4.]
+ [4. 4. 4. 4.]]
+requires_grad = False
+grad = None
+dtype  = float32" color=lightgrey style=filled]
+	4316664784 [label="
+optype = Inplace.Copy
+shape  = [4, 4]
+data   = [[1. 1. 1. 1.]
+ [1. 1. 1. 1.]
+ [1. 1. 1. 1.]
+ [1. 1. 1. 1.]]
+requires_grad = False
+grad = None
+dtype  = float32" color=lightgrey style=filled]
+	4326253264 [label="
+optype = Alloc.Full
+shape  = ()
+data   = 1.0
+requires_grad = False
+grad = None
+dtype  = float32" color=lightgreen style=filled]
+	4326253264 -> 4316664784
+	4316664784 -> 4326258704
+	4315121296 [label="
+optype = Alloc.FromList
+shape  = [1]
+data   = [4.]
+requires_grad = False
+grad = <graph.ComputeNode object at 0x101ebcc90>
+dtype  = float32" color=lightgreen style=filled]
+	4327197840 [label="
+optype = Inplace.Sum
+shape  = ()
+data   = 32.0
+requires_grad = False
+grad = None" color=red style=filled]
+	4327197520 [label="
+optype = Inplace.Copy
+shape  = [4, 4]
+data   = [[2. 2. 2. 2.]
+ [2. 2. 2. 2.]
+ [2. 2. 2. 2.]
+ [2. 2. 2. 2.]]
+requires_grad = False
+grad = None
+dtype  = float32" color=lightgrey style=filled]
+	4327195408 [label="
+optype = Inplace.Multiply
+shape  = [4, 4]
+data   = [[2. 2. 2. 2.]
+ [2. 2. 2. 2.]
+ [2. 2. 2. 2.]
+ [2. 2. 2. 2.]]
+requires_grad = False
+grad = None
+dtype  = float32" color=lightgrey style=filled]
+	4316664784 -> 4327195408
+	4304637520 -> 4327195408
+	4327195408 -> 4327197520
+	4327197520 -> 4327197840
+	4315121296 -> 4327197840 [label=grad color=red]
+	4315121296 -> 4326258704
+	4326258704 -> 4326259472
+	4304637520 -> 4326259472 [label=grad color=red]
+	4304637520 -> 4304583952
+	4315121296 -> 4304583952
+	4304583952 -> 4316664784 [label=grad color=red]
+	4304583952 -> 4326253008
+	4326253008 -> 4326253264 [label=grad color=red]
+}
