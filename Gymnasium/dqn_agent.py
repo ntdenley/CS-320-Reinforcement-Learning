@@ -19,14 +19,6 @@ Transition = namedtuple('Transition',
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-BATCH_SIZE = 128 # How many transitions to sample from memory
-GAMMA = 0.99 # discount factor
-EPS_START = 0.9 # Beginning epsilon value - chance for random action to occur
-EPS_END = 0.05 # Ending epsilon value
-EPS_DECAY = 1000 # How quickly the epsilon value will decay
-TAU = 0.005 # Update rate of target network
-LR = 1e-4 # Learning rate for the optimizer
-
 """
 The Agent:
     The Agent is responsible for interfacing with the neural network model and the environment,
@@ -37,7 +29,14 @@ The Agent:
 """
 class DQN_Agent():
 
-    def __init__(self, env):
+    def __init__(self, env, params):
+        self.BATCH_SIZE = params["batch size"] # How many transitions to sample from memory
+        self.GAMMA = params["gamma"] # discount factor
+        self.EPS_START = params["epsilon start"] # Beginning epsilon value - chance for random action to occur
+        self.EPS_END = 0.05 # Ending epsilon value
+        self.EPS_DECAY = params["epsilon decay"] # How quickly the epsilon value will decay
+        self.TAU = 0.005 # Update rate of target network
+        self.LR = params["learning rate"] # Learning rate for the optimizer
 
         self.env = env
         # Get number of actions from gym action space
@@ -50,7 +49,7 @@ class DQN_Agent():
         self.target_net = DQN(n_observations, n_actions).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        self.optimizer = optim.AdamW(self.policy_net.parameters(), lr=LR, amsgrad=True)
+        self.optimizer = optim.AdamW(self.policy_net.parameters(), lr=self.LR, amsgrad=True)
         self.memory = ReplayMemory(10000)
         self.steps_done = 0
 
@@ -67,17 +66,17 @@ class DQN_Agent():
         target_net_state_dict = self.target_net.state_dict()
         policy_net_state_dict = self.policy_net.state_dict()
         for key in policy_net_state_dict:
-            target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
+            target_net_state_dict[key] = policy_net_state_dict[key]*self.TAU + target_net_state_dict[key]*(1-self.TAU)
         self.target_net.load_state_dict(target_net_state_dict)
 
     def optimize_model(self):
 
         # Only perform if the memory is big enough to fill the batch.
-        if len(self.memory) < BATCH_SIZE:
+        if len(self.memory) < self.BATCH_SIZE:
             return
         
         # Gather transitions by sampling a batch from the memory
-        transitions = self.memory.sample(BATCH_SIZE)
+        transitions = self.memory.sample(self.BATCH_SIZE)
 
         # The resulting transitions are a batch-array, which needs to be unzipped.
         # this is also referred to as transposing, which is explained further here:
@@ -110,12 +109,12 @@ class DQN_Agent():
         # on the "older" target_net; selecting their best reward with max(1).values
         # This is merged based on the mask, such that we'll have either the expected
         # state value or 0 in case the state was final.
-        next_state_values = torch.zeros(BATCH_SIZE, device=device)
+        next_state_values = torch.zeros(self.BATCH_SIZE, device=device)
         with torch.no_grad():
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1).values
         
         # Compute the expected Q values
-        expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch
 
         # Compute Huber loss
         criterion = nn.SmoothL1Loss()
@@ -134,7 +133,7 @@ class DQN_Agent():
         # get random number between [0,1)
         sample = random.random()
         # decay epsilon based on number of steps completed
-        eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * self.steps_done / EPS_DECAY)
+        eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-1. * self.steps_done / self.EPS_DECAY)
 
         # increase step counter
         self.steps_done += 1

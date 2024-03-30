@@ -1,13 +1,16 @@
 import tkinter as tk
 import tkinter.ttk as ttk
 import torch
+import cartpole_dqn as sim
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 
-class NewprojectApp:
+class DQNAdjuster:
     def __init__(self, master=None):
         # build ui
-        toplevel1 = tk.Tk() if master is None else tk.Toplevel(master)
-        toplevel1.configure(background="#5f7c8b", height=200, width=200)
-        self.title_frame = tk.Frame(toplevel1, name="title_frame")
+        self.toplevel1 = tk.Tk() if master is None else tk.Toplevel(master)
+        self.toplevel1.configure(background="#5f7c8b", height=200, width=200)
+        self.title_frame = tk.Frame(self.toplevel1, name="title_frame")
         self.title_frame.configure(background="#5f7c8b", height=200, width=200)
         self.title = tk.Label(self.title_frame, name="title")
         self.title.configure(
@@ -17,7 +20,7 @@ class NewprojectApp:
         self.title.grid(column=0, pady=10, row=0)
         self.title_frame.grid(column=0, row=0)
         self.agent_options_frame = ttk.Labelframe(
-            toplevel1, name="agent_options_frame")
+            self.toplevel1, name="agent_options_frame")
         self.agent_options_frame.configure(
             height=200, text='Agent Options', width=400)
         self.n_training_episodes_slider = tk.Scale(
@@ -33,6 +36,7 @@ class NewprojectApp:
             variable=self.N_EPISODES,
             width=10)
         self.n_training_episodes_slider.grid(column=0, row=0)
+        self.n_training_episodes_slider.set(600 if torch.cuda.is_available() else 100)
         self.n_display_episodes_slider = tk.Scale(
             self.agent_options_frame, name="n_display_episodes_slider")
         self.N_EPISODES_DISPLAYED = tk.IntVar()
@@ -45,6 +49,7 @@ class NewprojectApp:
             variable=self.N_EPISODES_DISPLAYED,
             width=10)
         self.n_display_episodes_slider.grid(column=0, row=1)
+        self.n_display_episodes_slider.set(25)
         self.lr_label = tk.Label(self.agent_options_frame, name="lr_label")
         self.lr_label.configure(
             background="#d7dfe3",
@@ -72,6 +77,7 @@ class NewprojectApp:
             variable=self.GAMMA,
             width=10)
         self.discount_slider.grid(column=0, row=4)
+        self.discount_slider.set(0.99)
         self.batch_size_slider = tk.Scale(
             self.agent_options_frame,
             name="batch_size_slider")
@@ -85,6 +91,7 @@ class NewprojectApp:
             variable=self.BATCH_SIZE,
             width=10)
         self.batch_size_slider.grid(column=0, row=5)
+        self.batch_size_slider.set(128)
         self.random_slider = tk.Scale(
             self.agent_options_frame,
             name="random_slider")
@@ -99,6 +106,7 @@ class NewprojectApp:
             variable=self.EPS_START,
             width=10)
         self.random_slider.grid(column=0, row=6)
+        self.random_slider.set(0.9)
         self.random_decay_slider = tk.Scale(
             self.agent_options_frame, name="random_decay_slider")
         self.EPS_DECAY = tk.IntVar()
@@ -112,9 +120,10 @@ class NewprojectApp:
             variable=self.EPS_DECAY,
             width=10)
         self.random_decay_slider.grid(column=0, row=7)
+        self.random_decay_slider.set(1000)
         self.agent_options_frame.grid(column=0, padx=20, pady=0, row=1)
         self.plot_options_frame = ttk.Labelframe(
-            toplevel1, name="plot_options_frame")
+            self.toplevel1, name="plot_options_frame")
         self.plot_options_frame.configure(
             height=200, text='Plot Options', width=300)
         self.enable_avg_toggle = ttk.Checkbutton(
@@ -132,7 +141,7 @@ class NewprojectApp:
         self.save_plot_toggle.grid(column=1, padx=20, row=0)
         self.plot_options_frame.grid(column=0, padx=10, pady=10, row=2)
         self.misc_options_frame = ttk.Labelframe(
-            toplevel1, name="misc_options_frame")
+            self.toplevel1, name="misc_options_frame")
         self.misc_options_frame.configure(
             height=200, takefocus=False, text='Misc. Options', width=300)
         self.cuda_enabled_toggle = ttk.Checkbutton(
@@ -140,7 +149,7 @@ class NewprojectApp:
         self.cuda_enabled_toggle.configure(text='Enable CUDA')
         self.cuda_enabled_toggle.grid(column=0, padx=107, row=0)
         self.misc_options_frame.grid(column=0, padx=10, row=3)
-        self.button_frame = ttk.Frame(toplevel1, name="button_frame")
+        self.button_frame = ttk.Frame(self.toplevel1, name="button_frame")
         self.button_frame.configure(height=200, width=200)
         button2 = ttk.Button(self.button_frame)
         button2.configure(text='Begin Training!')
@@ -149,15 +158,25 @@ class NewprojectApp:
         self.button_frame.grid(column=0, pady=20, row=4)
 
         # Main widget
-        self.mainwindow = toplevel1
+        self.mainwindow = self.toplevel1
 
     def run(self):
         self.mainwindow.mainloop()
 
     def begin_training(self):
         print(self.N_EPISODES.get(), self.N_EPISODES_DISPLAYED.get(), self.LR.get(), self.GAMMA.get(), self.BATCH_SIZE.get(),self.EPS_START.get(), self.EPS_DECAY.get())
-
+        params = {
+            "episode count": self.N_EPISODES.get(),
+            "episode display count": self.N_EPISODES_DISPLAYED.get(),
+            "learning rate": self.LR.get(),
+            "gamma": self.GAMMA.get(),
+            "batch size": self.BATCH_SIZE.get(),
+            "epsilon start": self.EPS_START.get(),
+            "epsilon decay": self.EPS_DECAY.get()
+        }
+        sim.run(params)
+            
 
 if __name__ == "__main__":
-    app = NewprojectApp()
+    app = DQNAdjuster()
     app.run()
