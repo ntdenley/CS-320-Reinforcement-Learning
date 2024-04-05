@@ -1,169 +1,221 @@
 '''
-Imports & Declarations
-- Gym (Gymnasium): OpenAI Environment Library
-- Pygame: Multi Media Game Creation Library
-- Numpy: Numerical Operation Library
-- tkinter (tk, ttk): GUI Library
-- Pillow: Rendering Library
+    Imports
+        - Gym (Gymnasium): OpenAI Environment Library
+        - Pygame: Multi Media Game Creation Library
+        - Numpy: Numerical Operation Library
+        - tkinter (tk, ttk): GUI Library
+        - Pillow: Rendering Library
+        - os: Operating System Library
+        - threading: Thread Library for running multiple processes
 '''
 import tkinter as tk
 import pygame
-import os
-import random
-import numpy as np
-from tkinter import ttk
-from PIL import Image, ImageTk
 import gym
+import os
+import threading
+import numpy as np
+import matplotlib.pyplot as plt
+from tkinter import ttk
 from gymplots import aiPlot 
 
 '''
     GUI Class:
-        Initalizes and handles aspects of the main Tkinter GUI window and the OpenAI environments such as 
-        the available environment IDs, GUI widgets (labels, buttons, and canvas), resizing, refreshing, 
-        loading/rendering, etc.  
+        Initalizes and handles aspects of the main Tkinter GUI window and the OpenAI environments.
 '''
-class environmentGUI:
+class EnvironmentGUI:
     '''
-        Function for initializing the GUI class and setting up the Tkinter root window.
+        Init Function: constructor method for GUI environment and initalizes instance of the class with a Tkinter root window.
+            Parameters:
+                - self: instance of class object
+                - root: Tkinter root window
     '''
     def __init__(self, root):
-        # Root window (top level/main window)
         self.root = root
+        self.setupGUI()
+
+    '''
+        setupGUI Function: Used to set up the graphical user interface (GUI) by providing the dimensions/title for the Tkinter root window. 
+            Parameters:
+                - self: instance of class object
+    '''
+    def setupGUI(self):
+        # Set title and dimensions for root window
         self.root.title("CS-320-AI-GUI")
+        self.root.geometry("800x600")
 
-        # Dropdown menu label
-        self.environmentLabel = ttk.Label(root, text = "OpenAI Gym Environments:")
-        self.environmentLabel.grid(row = 0, column = 0, padx = 10, pady = 10)
+        # Function call to create widgets
+        self.createWidgets()
 
-        # Available OpenAI gym environments (will add more in the future)
+    '''
+        createWidgets Function: Used to create the different widgets (buttons, labels, dropdown menus, sliders, etc.) for the GUI. 
+            Parameters:
+                - self: instance of class object
+    '''
+    def createWidgets(self):
+        # Label for dropdown menu
+        ttk.Label(self.root, text = "OpenAI Gym Environments:").grid(row = 0, column = 0, padx = 10, pady = 10)
+
+        # List of available gym environments to choose from 
         self.environmentIDs = [
             'Acrobot-v1', 'CartPole-v1', 'MountainCarContinuous-v0', 'MountainCar-v0', 'Pendulum-v1',
             'LunarLander-v2', 'CarRacing-v2', 'BipedalWalker-v3',
             'Blackjack-v1', 'Taxi-v3', 'CliffWalking-v0', 'FrozenLake-v1'
         ]
 
-        self.maxSteps = 200
-        
-        # String variable to store selected environment 
+        # Create dropdown menu
         self.selectedEnvironment = tk.StringVar()
-
-        # Dropdown menu
-        self.environmentDropdown = ttk.Combobox(root, textvariable = self.selectedEnvironment, values = self.environmentIDs)
+        self.environmentDropdown = ttk.Combobox(self.root, textvariable = self.selectedEnvironment, values = self.environmentIDs)
         self.environmentDropdown.grid(row = 0, column = 1, padx = 10, pady = 10)
 
-        # Button to load selected environment
-        self.loadButton = ttk.Button(root, text = "Load Environment", command = self.loadEnvironment)
-        self.loadButton.grid(row = 1, column = 0, pady = 10)
+        # Buttons for loading chosen environment 
+        ttk.Button(self.root, text = "Load Environment", command = self.loadEnvironment).grid(row = 1, column = 0, pady = 10)
+        
+        # Buttons for displaying data plot 
+        ttk.Button(self.root, text = 'Plot', command = self.displayPlot).grid(row = 1, column = 1, pady = 10)
 
-        # Button to display gymplots
-        self.plotButton = ttk.Button(root, text = 'Plot', command = self.displayPlots)
-        self.plotButton.grid(row = 1, column = 1, columnspan = 1, pady = 10)
+        # Function call to embed pygame environment window into GUI 
+        self.embedPygame()
 
-        # Frame for embedding the Pygame render
-        self.embedPygame = tk.Frame(root, width = 800, height = 600)
-        self.embedPygame.grid(row = 2, column = 0, columnspan = 2, pady = 10)
-
-        # Initialize Pygame
-        self.setupPygame()
-
-    ''' 
-        Function to set up Pygame render in GUI
-        source: https://stackoverflow.com/questions/23319059/embedding-a-pygame-window-into-a-tkinter-or-wxpython-frame
     '''
-    def setupPygame(self):
-        # Set environment variables for Pygame
-        os.environ['SDL_WINDOWID'] = str(self.embedPygame.winfo_id())
+        embedPygame Function: Used to embed pygame window into the GUI. 
+            Parameters:
+                - self: instance of class object
+    '''
+    def embedPygame(self):
+        # Create frame that will be used to embed the pygame screen
+        self.embedFrame = tk.Frame(self.root, width = 800, height = 600)
+        self.embedFrame.grid(row = 2, column = 0, columnspan = 2, padx = (120, 10), pady = 10) 
+
+        # Put pygame environment into the frame
+        os.environ['SDL_WINDOWID'] = str(self.embedFrame.winfo_id())
         os.environ['SDL_VIDEODRIVER'] = 'windib'
-        
-        # Initialize Pygame display
         pygame.display.init()
-        
-        # Create a Pygame display surface
         self.screen = pygame.display.set_mode((800, 600))
 
     '''
-        Function for rendering the chosen gym environment.
-    '''
-    def renderEnvironment(self, environment, maxSteps):
-        # Sets up rendering window
-        environment.render()
-        
-        # Gets initial state
-        state = environment.reset()
-        done = False
-        stepCounter = 0
-
-        while not done and stepCounter < maxSteps:
-            action = environment.action_space.sample()
-            observation, reward, done, _, info = environment.step(action)
-            pygame.display.flip()
-            stepCounter += 1
-
-    '''
-        Function for loading the chosen environment. 
+        loadEnvironment Function: Used to embed the pygame screen into the Tkinter GUI frame
+            Parameters:
+                - self: instance of class object
     '''
     def loadEnvironment(self):
-        # Checks if an environment has been selected from the dropdown menu
-        if not self.selectedEnvironment.get():
-            self.errorMessage("Choose Environment from Dropdown Menu")
+        # Load selected environment
+        selectedID = self.selectedEnvironment.get()
+        
+        # Check if an environment wasn't selected
+        if not selectedID:
+            self.showError("Choose Environment from Dropdown Menu")
             return
 
-        # Gets selected Gym environment
-        environmentID = self.selectedEnvironment.get()
-
-        # Checks if selected environment is available
-        if environmentID not in self.environmentIDs:
-            self.errorMessage("Invalid Environment Selection")
+        # Check if the selected environment is valid
+        if selectedID not in self.environmentIDs:
+            self.showError("Choose a valid environment")
             return
 
-        # Attempt to create the selected environment
+        # Check for errors when creating/loading the chosen environment
         try:
-            environment = gym.make(environmentID, render_mode="human")
+            # Create environment
+            self.environment = gym.make(selectedID, render_mode = "human")
+            
+            # Function call to render the environment
+            self.renderEnvironment()
+
+        # Handle errors
         except gym.error.Error as e:
-            self.errorMessage(f"Error: Creating Environment: {e}")
-            return
-
-        # Renders a new version of the selected environment
-        environment.reset()
-        self.renderEnvironment(environment, self.maxSteps)
+            self.showError(f"Error: Creating Environment: {e}")
 
     '''
-        Function for displaying the plots from gymplots.py
+        renderEnvironment Function: Used to render the selected gym environment using pygame. 
+            Parameters:
+                - self: instance of class object
     '''
-    def displayPlots(self):
-        # Create instance of AI Plot
-        self.plot = aiPlot(step_value= 10, calculate_avg= True)
+    def renderEnvironment(self):
+        # Reset and render the environment
+        self.state = self.environment.reset() 
+        self.environment.render()  
+        self.done = False
+        self.stepCount = 0
 
-        # Adds data to plot
-        for step in range(100):
-            reward = np.random.normal(0, 1)
-            self.plot.update(step, reward)
-            plt.pause(0.001)
-
-        # Display Plot
-        self.plot.show()
+        # Create separate thread for training session
+        self.trainingThread = threading.Thread(target = self.trainEnvironment)
+        self.trainingThread.start()
 
     '''
-        Function for prompting the user when errors occur.
+        trainEnvironment Function: Used to train the environment (this uses random actions for now) until the episode ends or a maximum number of steps is met. 
+            Parameters:
+                - self: instance of class object
     '''
-    def errorMessage(self, message):
-        # New top level window to display error message over root window
+    def trainEnvironment(self):
+        maxSteps = 500
+        
+        # Train until the episode is finished or when the maximum number of steps is met
+        while not self.done and self.stepCount < maxSteps:
+            # Chooses random action
+            action = self.environment.action_space.sample()
+
+            # Performs the random action
+            observation, reward, self.done, _, info = self.environment.step(action)
+            
+            # Updates the display
+            pygame.display.flip()
+
+            # Increments the step counter
+            self.stepCount += 1
+
+    '''
+        displayPlot Function: Used to display data from training sessions using aiPlot class from gymplots file. 
+            Parameters:
+                - self: instance of class object
+    '''
+    def displayPlot(self):
+        # Check for errors when displaying the plot (using aiPlot)
+        try:
+            # Create instance of aiPlot class
+            plot = aiPlot(step_value = 10, calculate_avg = True)
+            
+            # Iterate over a range of steps
+            for step in range(100):
+                # Generate random reward
+                reward = np.random.normal(0, 1)
+                
+                # Update plot with current step/reward
+                plot.update(step, reward)
+
+                # Pause for updating the plot to see real-time results
+                plt.pause(0.001)
+
+            # Show completed plot after episode finishes or max steps is met
+            plot.show()
+
+        # Handle errors
+        except Exception as e:
+            self.showError(f"Error displaying plots: {e}")
+
+    '''
+        showError Function: Used to display error messages in a pop up window to the user. 
+            Parameters:
+                - self: instance of class object
+                - message: error that will be displayed
+    '''
+    def showError(self, message):
+        # Create new top-level window
         errorWindow = tk.Toplevel(self.root)
-        errorWindow.title("Uh Oh")
 
-        # Label to display error message
-        errorLabel = ttk.Label(errorWindow, text=message)
-        errorLabel.pack(padx=10, pady=10)
+        # Create a title and label for error window
+        errorWindow.title("Error")
+        ttk.Label(errorWindow, text = message).pack(padx = 10, pady = 10)
 
-        # Button to close error window
-        closeButton = ttk.Button(errorWindow, text="Close", command=errorWindow.destroy)
-        closeButton.pack(pady=10)
+        # Button for closing the error window
+        ttk.Button(errorWindow, text = "Close", command = errorWindow.destroy).pack(pady = 10)
 
 '''
     Main Function
 '''
 if __name__ == "__main__":
-    # Creates main Tkinter window, instance of class, and loops
+    # Create Tkinter winodw
     root = tk.Tk()
-    app = environmentGUI(root)
+
+    # Initialize GUI
+    application = EnvironmentGUI(root)
+    
+    # Run Tkinter event loop
     root.mainloop()
