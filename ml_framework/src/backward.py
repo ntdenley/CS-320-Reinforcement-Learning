@@ -32,13 +32,35 @@ def expand_or_squeeze_unary_op(inp: ComputeNode, out_shape, optype: OpType) -> C
     # otherwise, out is smaller, and we need to sum.
     # one sum per dimension shaved off, so maybe several.
     else:
-        # keep doing sums until... out.shape matches out_shape
-        n = ComputeNode(inp.shape)
-        n.loadop(LazyOp(optype, inputNodes=[inp]))
-        keepdims = False #len(out_shape) == len(inp.shape)
-        out = ComputeNode(())
-        out.loadop(LazyOp(OpType.Inplace.Sum, None, keepdims, inputNodes=[n]))
-        return out
+        # if output 0 dimensions, just do sum
+        if len(out_shape) == 0:
+            n = ComputeNode(inp.shape)
+            n.loadop(LazyOp(optype, inputNodes=[inp]))
+            keepdims = False
+            axis = None
+            out = ComputeNode(out_shape)
+            out.loadop(LazyOp(OpType.Inplace.Sum, axis, keepdims, inputNodes=[n]))
+            return out
+        else:
+            if len(inp.shape) - len(out_shape) == 1:
+                keepdims = False
+                axis = 0
+                n = ComputeNode(inp.shape)
+                n.loadop(LazyOp(optype, inputNodes=[inp]))
+                out = ComputeNode(out_shape)
+                out.loadop(LazyOp(OpType.Inplace.Sum, axis, keepdims, inputNodes=[n]))
+                return out
+            else:
+                axis = 0
+                keepdims = False
+                n = ComputeNode(inp.shape)
+                n.loadop(LazyOp(optype, inputNodes=[inp]))
+                out = ComputeNode(inp.shape[1:])
+                out.loadop(LazyOp(OpType.Inplace.Sum, axis, keepdims, inputNodes=[n]))
+                out2 = ComputeNode(out_shape)
+                out2.loadop(LazyOp(OpType.Inplace.Sum, axis, keepdims, inputNodes=[out]))
+                return out2
+ 
 
 def expand_binary_op(inp1: ComputeNode, inp2:  ComputeNode, optype: OpType) -> ComputeNode:
     # ensures that the output node has the shape of the larger of the input nodes.
@@ -100,7 +122,6 @@ def build_backward_graph(node):
     node.grad = n
     apply_backward_to_parents(node)
 
-
 def alloc_grad(node):
     if node.grad:
         node.grad.allocate()
@@ -118,32 +139,3 @@ def zero_grad(node):
         node.backend.fill_inplace(node.grad.data, 1)
         for p in node.op.get_parents():
             _zero_grad(p)
-
-# shape = [4,4]
-
-# # a = ComputeNode(shape=shape)
-# # a.loadop(LazyOp(OpType.Alloc.FromList, a.shape, [1,2,3,4]))
-# a = ComputeNode(shape=shape)
-# a.loadop(LazyOp(OpType.Alloc.Full, a.shape, 2))
-
-# b = ComputeNode(shape=[1])
-# b.loadop(LazyOp(OpType.Alloc.FromList, [1], [4]))
-
-# c = ComputeNode(shape=shape)
-# c.loadop(LazyOp(OpType.Inplace.Multiply, inputNodes=[a,b]))
-
-# d = ComputeNode(shape=())
-# d.loadop(LazyOp(OpType.Inplace.Sum, None, False, inputNodes=[c]))
-
-# build_backward_graph(d)
-# d.allocate()
-# d.evaluate()
-# alloc_grad(d)
-# zero_grad(d)
-
-# a.grad.evaluate()
-# b.grad.evaluate()
-
-# print(a.evaluate())
-
-# view_graph(d, "forward")
