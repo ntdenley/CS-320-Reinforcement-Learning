@@ -2,11 +2,14 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import torch
 import cartpole_dqn as sim
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from gymplots import aiPlot
 
 class DQNAdjuster:
     def __init__(self, master=None):
+
+        self.plot = None
+        self.plot_count = 0
+
         # build ui
         self.toplevel1 = tk.Tk() if master is None else tk.Toplevel(master)
         self.toplevel1.configure(background="#5f7c8b", height=200, width=200)
@@ -135,9 +138,14 @@ class DQNAdjuster:
             text='Display Average',
             variable=self.show_avg)
         self.enable_avg_toggle.grid(column=0, padx=20, row=0)
+        self.save_plot = tk.BooleanVar()
         self.save_plot_toggle = ttk.Checkbutton(
             self.plot_options_frame, name="save_plot_toggle")
-        self.save_plot_toggle.configure(text='Save Previous Plots')
+        self.save_plot_toggle.configure(
+            offvalue=False,
+            onvalue=True,
+            text='Save Previous Plots',
+            variable=self.save_plot)
         self.save_plot_toggle.grid(column=1, padx=20, row=0)
         self.plot_options_frame.grid(column=0, padx=10, pady=10, row=2)
         self.misc_options_frame = ttk.Labelframe(
@@ -164,7 +172,15 @@ class DQNAdjuster:
         self.mainwindow.mainloop()
 
     def begin_training(self):
-        print(self.N_EPISODES.get(), self.N_EPISODES_DISPLAYED.get(), self.LR.get(), self.GAMMA.get(), self.BATCH_SIZE.get(),self.EPS_START.get(), self.EPS_DECAY.get())
+        
+        if not self.save_plot.get() or not self.plot:
+            print("Creating new plot!!!")
+            if self.plot: self.plot.close()
+            self.plot = aiPlot(step_value=5, calculate_avg=True)
+            self.plot_count = 0
+
+        self.plot_count += 1
+
         params = {
             "episode count": self.N_EPISODES.get(),
             "episode display count": self.N_EPISODES_DISPLAYED.get(),
@@ -172,7 +188,10 @@ class DQNAdjuster:
             "gamma": self.GAMMA.get(),
             "batch size": self.BATCH_SIZE.get(),
             "epsilon start": self.EPS_START.get(),
-            "epsilon decay": self.EPS_DECAY.get()
+            "epsilon decay": self.EPS_DECAY.get(),
+            "save plot": self.save_plot.get(),
+            "plot": self.plot,
+            "plot count": self.plot_count
         }
         sim.run(params)
             
