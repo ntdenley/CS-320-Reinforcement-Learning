@@ -28,4 +28,4 @@ The project is written in Python 3, and mainly utilizes the following libraries:
 
 ## How to Use:
 Each feature is separated into their own directory, as we have not gotten to the stage of combining our features just yet. Noah's work is in `/dqn_plotting`, Igor's is in `/ml_framework`, and Garett's is in `/gui`. In order to ensure the right libraries are installed, use `pip install -r requirements.txt`, which references the requirements file in the root of the repository. From here, run the target file depending on your feature you wish to explore: 
-> Noah - `./dqn_plotting/dqn_tweaks_gui.py`
+> Noah - `./dqn_plotting/dqn_tweaks_gui.py` 
