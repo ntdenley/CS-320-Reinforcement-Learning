@@ -1,1 +1,0 @@
-This file is where source files for gym enviroments and training will be kept.
