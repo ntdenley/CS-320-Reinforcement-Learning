@@ -18,9 +18,11 @@ def run(params):
     env = gym.make("CartPole-v1")
 
     agent = DQN_Agent(env, params)
-    graph = aiPlot(step_value=1, calculate_avg=True)
+    graph = params["plot"]
+    plot_count = params["plot count"]
 
     num_episodes = params["episode count"]
+    save_plot = params["save plot"]
 
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
@@ -51,7 +53,7 @@ def run(params):
             agent.soft_update()
 
             if done:
-                graph.update(i_episode, t)
+                graph.update(i_episode, t, plot_count)
                 break
 
     env = gym.make("CartPole-v1", render_mode="human")
@@ -83,7 +85,8 @@ def run(params):
             # agent.soft_update()
 
             if done:
-                graph.update(i_episode, t)
+                #graph.update(i_episode, t)
                 break
     env.close()
-    graph.close()
+    if not save_plot:
+        graph.close()

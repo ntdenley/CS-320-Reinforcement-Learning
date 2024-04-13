@@ -7,6 +7,9 @@ import random
 
 plt.ion()
 
+colors = ['blue', 'green', 'red', 'cyan', 'magenta', 'yellow', 'black', 'white', 
+          'gray', 'brown', 'orange', 'purple', 'pink', 'olive', 'teal', 'maroon', 'navy']
+
 class aiPlot():
     """
     Args:
@@ -21,9 +24,12 @@ class aiPlot():
     def __init__(self, step_value, calculate_avg=False):
 
         # Initialize plot data arrays
-        self.x = []
-        self.y = []
-        self.avgs = []
+        self.lines = []
+        for i in range(10):
+            self.lines.append({
+                "x": [],
+                "y": []
+            })
 
         # Assign vital class members
         self.step_value = step_value
@@ -31,34 +37,43 @@ class aiPlot():
         self.graph = None
         self.calc_avg = calculate_avg
         
-    def update(self, xVal, yVal):
+    def update(self, xVal, yVal, plot_count):
 
         # Check if plot will be updated
         if self.frame % self.step_value == 0:
 
             # Add values to plot data
-            self.x.append(xVal)
-            self.y.append(yVal)
+            self.lines[plot_count-1]["x"].append(xVal)
+            self.lines[plot_count-1]["y"].append(yVal)
 
             # Remove graph to update (if it exists)
             if self.graph is not None:
                 self.graph.remove()
             
             # Create new graph with updated plot data
-            self.graph = plt.plot(self.x, self.y, color='g')[0] # default color to green (for now)
+            for i in range(plot_count):
+                self.graph = plt.plot(
+                    self.lines[i]["x"],
+                    self.lines[i]["y"], 
+                    label=f'Trial #{i+1}', 
+                    color=colors[i]
+                )[0]
             
-            # Check if we care for the average
-            if self.calc_avg:
-                # Calculate the average, append it to list of averages, and add second plot line.
-                average = sum(self.y) / len(self.y)
-                self.avgs.append(average)
-                plt.plot(self.x, self.avgs, color='r')[0] # default color to red 
+            # # Check if we care for the average
+            # if self.calc_avg:
+            #     # Calculate the average, append it to list of averages, and add second plot line.
+            #     average = sum(self.y) / len(self.y)
+            #     self.avgs.append(average)
+            #     plt.plot(self.x, self.avgs, color='r')[0] # default color to red 
 
             # Dynamically size the plot based on x.
-            plt.xlim(self.x[0], self.x[-1])
+            plt.xlim(self.lines[plot_count-1]["x"][0], self.lines[plot_count-1]["x"][-1])
             
             # Pause to prevent plot update overlapping
             plt.pause(0.001)
         
         # Increment frame counter
         self.frame += 1
+    
+    def close(self):
+        plt.close()
