@@ -1,5 +1,5 @@
-from src.graph import ComputeNode, LazyOp
-from src.op import OpType
+from ml.graph import ComputeNode, LazyOp
+from ml.op import OpType
 import random
 import numpy as np
 from math import log10
@@ -62,7 +62,9 @@ class TestComputeNode:
         (OpType.Inplace.Square),
         (OpType.Inplace.Sin),
         (OpType.Inplace.Cos),
-        (OpType.Inplace.Tan)
+        (OpType.Inplace.Tan),
+        (OpType.Inplace.Negative),
+        (OpType.Inplace.Reciprocal)
     ]
 
     @pytest.mark.parametrize("optype", unary_inplace_ops)
@@ -83,8 +85,6 @@ class TestComputeNode:
     
     binary_inplace_ops = [
         (OpType.Inplace.Add),
-        (OpType.Inplace.Subtract),
-        (OpType.Inplace.Divide),
         (OpType.Inplace.Multiply),
         (OpType.Inplace.Matmul),
     ]
@@ -202,7 +202,7 @@ class TestComputeNode:
         assert success, f"{name} failed: some element agreed on only {sigs} / {min_single_sigfig} sigs"
         assert sigs >= min_avg_sigfig, f"{name} failed: on average agreed on only {sigs} / {min_avg_sigfig} sigs"
 
-            # subtle change, and second pass
+        # subtle change, and second pass
         self.change = np.random.rand(self.nelem).reshape(self.shape)
         #cn
         self.cn1.data -= self.change

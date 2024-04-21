@@ -3,29 +3,38 @@ from enum import Enum, auto
 
 class OpType:
     class Alloc(Enum): # allocate memory in which to store some data.
-        FromList = auto()
         Empty = auto()
-        Rand = auto()
+        FromList = auto()
         Full = auto()
+        Rand = auto()
     class View(Enum): # creates a new view on some tensor, some alloc.
         Reshape = auto()
         Transpose = auto()
-    class Inplace(Enum): # applies transformations between allocated tensors.
+    class Inplace(Enum): # applies transformations between 1 or 2 input tensors, with an output tensor.
+        Add = auto()
+        Abs = auto()
+        Accumulate = auto() # nondifferetiable
+            # Cmp is a weird operation that i've created.
+            # cmp a b: if a < b: out = -1
+            #          if a == b:out =  0
+            #          if a > b: out =  1
+            # broadcasting is still supported here.
+        Cmp = auto() 
+        Copy = auto()
+        Cos = auto()
+        Exp = auto()
+        Fillinplace = auto()
+        Log = auto()
+        Max = auto()
+        Multiply = auto()
+        Matmul = auto()
+        Negative = auto()
+        Reciprocal = auto()
+        Sin = auto()
         Sum = auto()
         Sqrt = auto()
         Square = auto()
-        Negative = auto()
-        Copy = auto()
-        Fillinplace = auto()
-        Accumulate = auto()
-        Sin = auto()
-        Cos = auto()
         Tan = auto()
-        Add = auto()
-        Subtract = auto()
-        Multiply = auto()
-        Divide = auto()
-        Matmul = auto()
 
 '''
 Requirements:
@@ -63,6 +72,12 @@ class BackendInterface(ABC):
         
     @abstractmethod
     def sum(self, inp, out, axis, keepdims): pass
+
+    @abstractmethod
+    def max(self, inp, out, axis, keepdims): pass
+
+    @abstractmethod
+    def abs(self, inp, out): pass
     
     @abstractmethod
     def sqrt(self, inp, out): pass
@@ -71,8 +86,17 @@ class BackendInterface(ABC):
     def square(self, inp, out): pass
     
     @abstractmethod
-    def negative(self, inp, out): pass
+    def log(self, inp, out): pass
+
+    @abstractmethod
+    def exp(self, inp, out): pass
     
+    @abstractmethod
+    def negative(self, inp, out): pass
+
+    @abstractmethod
+    def reciprocal(self, inp, out): pass
+
     @abstractmethod
     def copy(self, inp, out): pass
     
@@ -89,16 +113,17 @@ class BackendInterface(ABC):
     def add(self, inp1, inp2, out): pass
     
     @abstractmethod
-    def subtract(self, inp1, inp2, out): pass
-    
-    @abstractmethod
     def multiply(self, inp1, inp2, out): pass
     
     @abstractmethod
-    def divide(self, inp1, inp2, out): pass
-    
-    @abstractmethod
     def matmul(self, inp1, inp2, out): pass
-    
+
+    @abstractmethod
+    def cmp(self, inp1, inp2, out): pass
+
     ''' methods that build on base ones. '''
-    def accumulate(self, inp, out): self.add(inp, out, out)
+    def accumulate(self, *args, out): 
+        # can accept any number of nodes, all of which will add to this one.
+        for a in args: self.add(a, out, out)
+
+    

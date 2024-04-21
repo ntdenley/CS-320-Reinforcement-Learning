@@ -6,3 +6,4 @@ __pycache__/
 htmlcov/
 .coverage
 .DS_Store
+*.egg-info/

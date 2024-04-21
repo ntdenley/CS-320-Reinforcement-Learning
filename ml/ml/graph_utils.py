@@ -18,7 +18,7 @@ def to_dot(node, dot=None, color=None, depth=0, visited=[]):
     label += f"\noptype = {node.op.optype}" if node.has_op else 'no op assigned'
     label += f"\nshape  = {node.shape}"
     label += f"\ndata   = {node.data}"
-    label += f"\nrequires_grad = {node.requires_grad}"
+    label += f"\nis_evaled = {node.is_evaled}"
     label += f"\ngrad = {node.grad}"
     if not color:
         if node.is_evaled:
