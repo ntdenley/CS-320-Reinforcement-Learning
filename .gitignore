@@ -1,10 +1,16 @@
+# misc
 .vscode/
 .conda
+.DS_Store
 gui/swigwin-4.2.0
-__pycache__/
+
+# test frameworks
 .pytest_cache/
 htmlcov/
 .coverage
-.DS_Store
+
+# python
+__pycache__/
 *.egg-info/
-ml/dist
+build/
+dist/
