@@ -1,13 +1,19 @@
 "Imports"
 import tkinter as tk
-from tkinter import ttk
 import pygame
 import gym
 import os
 import threading
 import csv
+import random
+import sys
+from tkinter import ttk
+from gymplots import aiPlot
+from tkinter.filedialog import askopenfilename
+sys.path.append("./")
 
-"GUI Class: "
+
+"GUI Class"
 class environmentGUI:
     stepsDefault = 1000 # Initialize default maximum steps
 
@@ -18,6 +24,7 @@ class environmentGUI:
         self.setupGUI()
         self.trainingData = []
         self.selectedID = None
+        self.selectedAgent = None
         self.stopTraining = threading.Event()
         self.maxSteps = self.stepsDefault
         self.sessionNumber = 1
@@ -28,40 +35,51 @@ class environmentGUI:
         self.root.title("CS-320-AI-GUI")
         self.root.geometry("800x600")
 
-        # 
-        ttk.Label(self.root, text = "OpenAI Gym Environments:").grid(row = 0, column = 0, padx = 10, pady = 10, sticky = "w")
+        # Left side: OpenAI Gym Environments dropbox, DQN Agent dropbox, and Max Steps entrybox
+        leftFrame = tk.Frame(self.root)
+        leftFrame.grid(row = 0, column = 0, padx = 10, pady = 10, sticky = "nsew")
 
         # Available gym environments the user can choose from
+        ttk.Label(leftFrame, text = "OpenAI Gym Environments:").grid(row = 0, column = 0, padx = 10, pady = 10, sticky = "w")
         self.environmentIDs = [
-            # Classic Control
             'Acrobot-v1', 'CartPole-v1', 'MountainCarContinuous-v0', 'MountainCar-v0', 'Pendulum-v1',
-            
-            # Box2D
             'LunarLander-v2', 'CarRacing-v2', 'BipedalWalker-v3',
-            
-            # Toy Text
             'Blackjack-v1', 'Taxi-v3', 'CliffWalking-v0', 'FrozenLake-v1'
         ]
-
         # Dropbox to display the available environments
         self.selectedEnvironment = tk.StringVar()
-        self.environmentDropdown = ttk.Combobox(self.root, textvariable = self.selectedEnvironment, values = self.environmentIDs)
-        self.environmentDropdown.grid(row = 0, column = 1, padx = 10, pady = 10, sticky = "w")
+        self.environmentDropdown = ttk.Combobox(leftFrame, textvariable = self.selectedEnvironment, values = self.environmentIDs)
+        self.environmentDropdown.grid(row = 1, column = 0, padx = 10, pady = 5, sticky = "w")
+
+        # Available DQN Agents the user can choose from
+        ttk.Label(leftFrame, text = "DQN Agent:").grid(row = 2, column = 0, padx = 10, pady = 5, sticky = "w")
+        self.agentIDs = [
+            'Agent1', 'Agent2', 'Agent3'
+        ]
+        # Dropbox to display the available DQN Agents
+        self.selectedAgent = tk.StringVar()
+        self.agentDropdown = ttk.Combobox(leftFrame, textvariable = self.selectedAgent, values = self.agentIDs)
+        self.agentDropdown.grid(row = 3, column = 0, padx = 10, pady = 5, sticky = "w")
 
         # Entry box for the user to adjust the maximum episode steps 
-        ttk.Label(self.root, text = "Max Steps:").grid(row = 1, column = 0, padx = 10, pady = 10, sticky = "w")
-        self.maxEpisodeStepsEntry = ttk.Entry(self.root)
-        self.maxEpisodeStepsEntry.grid(row = 1, column = 1, padx = 10, pady = 10, sticky = "w")
+        ttk.Label(leftFrame, text = "Max Steps:").grid(row = 4, column = 0, padx = 10, pady = 5, sticky = "w")
+        self.maxEpisodeStepsEntry = ttk.Entry(leftFrame)
+        self.maxEpisodeStepsEntry.grid(row = 5, column = 0, padx = 10, pady = 5, sticky = "w")
+
+        # Right side: Buttons
+        rightFrame = tk.Frame(self.root)
+        rightFrame.grid(row = 0, column = 1, padx = 10, pady = 10, sticky = "nsew")
 
         # Frame to display buttons on the GUI window
-        buttonFrame = tk.Frame(self.root)
-        buttonFrame.grid(row = 0, column = 2, rowspan = 3, padx = 10, pady = 10, sticky = "ns")
+        buttonFrame = tk.Frame(rightFrame)
+        buttonFrame.grid(row = 0, column = 0, padx = 10, pady = 10, sticky = "nsew")
 
         # Function call to create specific buttons
-        self.createButton(buttonFrame, "Load Environment", self.loadEnvironment, 5, 5)
-        self.createButton(buttonFrame, "Start", self.startTrainingSession, 5, 5)
-        self.createButton(buttonFrame, "Stop", self.stopTraining, 5, 5)
-        self.createButton(buttonFrame, "Quit", self.quitEnvironment, 5, 5)
+        self.createButton(buttonFrame, "Load Environment", self.loadEnvironment, 3, 3)
+        self.createButton(buttonFrame, "Start", self.startTrainingSession, 3, 3)
+        self.createButton(buttonFrame, "Stop", self.stopTrainingFunc, 3, 3)
+        self.createButton(buttonFrame, "Plot Data", self.plotData, 3, 3)
+        self.createButton(buttonFrame, "Quit", self.quitEnvironment, 3, 3)
 
         # Function call to embed the pygame window into the GUI window
         self.embedPygame()
@@ -80,9 +98,9 @@ class environmentGUI:
 
         # Frame for embedding pygame display into
         self.embedFrame = tk.Frame(self.root, width = 500, height = 500)
-        self.embedFrame.grid(row = 3, column = 0, columnspan = 3, padx = (120, 10), pady = 10)
+        self.embedFrame.grid(row = 1, column = 0, columnspan = 2, padx = (120, 10), pady = 10)
 
-        # Put pygame environment display into the frame
+        # Put pygame environment display into the frame by modifying SDL variables
         os.environ['SDL_WINDOWID'] = str(self.embedFrame.winfo_id())
         os.environ['SDL_VIDEODRIVER'] = 'windib'
         self.screen = pygame.display.set_mode((800, 600))
@@ -91,7 +109,7 @@ class environmentGUI:
     def loadEnvironment(self):
         # Close current environment if it already exists
         if hasattr(self, 'environment') and self.environment:
-            self.environment.close() 
+            self.environment.close()
 
         # Get chosen environment
         self.selectedID = self.selectedEnvironment.get()
@@ -101,7 +119,7 @@ class environmentGUI:
             self.showError("Choose an environment from the dropdown menu")
             return
 
-        # Check if the selected environment is valid
+        # Check if an environment is valid
         if self.selectedID not in self.environmentIDs:
             self.showError("Choose a valid environment")
             return
@@ -126,7 +144,7 @@ class environmentGUI:
         if not self.selectedID:
             self.showError("Need to load an environment")
             return
-        
+
         # Function call to initialize training session with specific settings
         self.initializeTraining()
 
@@ -157,7 +175,7 @@ class environmentGUI:
 
     " trainEnvironment Function: Used to train the environment (this uses random actions for now) "
     def trainEnvironment(self):
-        # Total Reward 
+        # Total Reward
         episodeReward = 0
 
         # Train until maximum steps is reached, environment is done, or training session stops
@@ -173,8 +191,27 @@ class environmentGUI:
         self.saveTrainingData()
 
     " stopTraining Function: method for pausing the training session once started"
-    def stopTraining(self):
+    def stopTrainingFunc(self):
         self.stopTraining.set()
+
+    " plotData Function: method for plotting the currently collected data in the training session using gymplots.py file (Noah Denley) "
+    def plotData(self):
+        try:
+            # Get data
+            steps = [data[2] for data in self.trainingData]
+            rewards = [data[3] for data in self.trainingData]
+
+            # Create plot
+            plt.plot(steps, rewards, marker = 'o', linestyle = '-')
+            plt.xlabel('Steps')
+            plt.ylabel('Total Reward')
+            plt.title('Training Data')
+            plt.grid(True)
+            plt.show()
+
+        # Handle errors
+        except Exception as e:
+            self.showError(f"Error occurred while plotting data: {e}")
 
     " quitEnvironment Function: Used to quit the GUI "
     def quitEnvironment(self):
@@ -248,13 +285,22 @@ class environmentGUI:
         ttk.Label(errorWindow, text = message).pack(padx = 10, pady = 10)
         ttk.Button(errorWindow, text = "Close", command = errorWindow.destroy).pack(pady = 10)
 
-" Main Function "
+'''
+    Main Function
+'''
 def main():
+    # Create Tkinter winodw
     root = tk.Tk()
+
+    # Define output path and check if it exists. If not, create the directory
     outputPath = "output"
     if not os.path.exists(outputPath):
         os.makedirs(outputPath)
+
+    # Initialize GUI
     application = environmentGUI(root, outputPath)
+    
+    # Run Tkinter event loop
     root.mainloop()
 
 if __name__ == "__main__":
