@@ -1,12 +1,11 @@
 import ml.array as ml
-from ml.graph import ComputeNode, LazyOp
 import torch
 import time
 
-lr = 1e-3
-iter = 1000
+lr = 1e-8 * (0.2)
+iter = 10000
 
-shape = 1
+shape = 100
 start = torch.ones([shape])
 
 def torch_version():
@@ -25,7 +24,7 @@ def torch_version():
             w -= w.grad * lr
             w.grad.zero_()
     # print("Weights = ", w)
-    print("Loss = ", loss(f(x,w)))
+    # print("Loss = ", loss(f(x,w)))
     return loss(f(x,w))
 
 def my_version():
@@ -51,20 +50,25 @@ def my_version():
         loss.node.backend.add(w.node.data, temp_array, w.node.data)
 
     # print("Weights = ", w)
-    print("Loss = ", loss)
-    return loss.eval()
+    # print("Loss = ", loss)
+    return loss
 
 st = time.time()
 l1 = torch_version()
 et = time.time()
-print("time = ", et-st)
+torch_time = et-st
 
-print()
 st = time.time()
 l2 = my_version()
 et = time.time()
-print("time = ", et-st)
+my_time = et-st
 
-print()
-print(f"{l1=}")
-print(f"{l2=}")
+print("PYTORCH")
+print(f" loss = {l1.item():.6f}")
+print(f" time = {torch_time:.6f} seconds")
+
+print("\nMY ML FRAMEWORK")
+print(f" loss = {l2.eval().item():.6f}")
+print(f" time = {my_time:.6f} seconds")
+
+l2.view_graph()

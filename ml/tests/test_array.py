@@ -203,6 +203,7 @@ class TestArray:
         (lambda x: x.flatten() * 32,           "reshape"),
         (lambda x: x.t() * 32,                 "transpose"),
         (lambda x: x.unsqueeze(1) * 32,        "unsqueeze"),
+        (lambda x: x.sigmoid(),                "sigmoid")
     ]
 
     @pytest.mark.parametrize("f, name", unary_ops)

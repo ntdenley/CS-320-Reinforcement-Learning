@@ -4,5 +4,11 @@ from ml.op import OpType
 from ml.array import Array
 from ml.nn import Linear
 import ml.array as ml
-import numpy as np
-import torch
+
+a = ml.Array([1,2,3])
+b = ml.Array([100,200,300])
+
+out = (a + b).sqrt() 
+
+out.eval()
+out.view_graph()

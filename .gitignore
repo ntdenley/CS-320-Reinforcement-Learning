@@ -3,6 +3,8 @@
 .conda
 .DS_Store
 gui/swigwin-4.2.0
+*.csv
+*.gz
 
 # test frameworks
 .pytest_cache/

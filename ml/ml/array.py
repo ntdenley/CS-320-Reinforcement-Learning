@@ -112,8 +112,8 @@ class Array:
             self.node.allocate()
         return self.node.evaluate()
 
-    def view_graph(self, name="computation_graph", view=True):
-        view_graph(self.node, name, view)
+    def view_graph(self, name="computation_graph", view=True, view_data=True):
+        view_graph(self.node, name, view, view_data)
 
     ''' view '''
 
@@ -217,9 +217,13 @@ class Array:
         return self.unary_op(OpType.Inplace.Tan)
 
     def softmax(self, axis):
-        max_vals = self.max(axis=axis, keepdims=True)
-        exps = (self - max_vals).exp()  
+        # max_vals = self.max(axis=axis, keepdims=True)
+        # exps = (self - max_vals).exp()  
+        exps = self.exp()
         return exps / exps.sum(axis=axis, keepdims=True)
+
+    def sigmoid(self):
+        return ((-self).exp() + 1).reciprocal()
 
     ''' binary operations'''
     
