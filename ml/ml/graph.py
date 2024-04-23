@@ -70,7 +70,7 @@ class ComputeNode:
             return self.data
 
     def set_reevaluate(self):
-        if isinstance(self.op.optype, OpType.Inplace):
+        if isinstance(self.op.optype, (OpType.Inplace, OpType.View)):
             self.is_evaled = False
             if self.grad: self.grad.is_evaled = False
         for parent in self.op.get_parents():
