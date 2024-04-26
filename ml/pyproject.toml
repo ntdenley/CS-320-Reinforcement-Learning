@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=40.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml"
+version = "0.1.0"
+authors = [{name = "Igor Kovalenko"}]
+description = "A simple machine learning library."
+requires-python = ">=3.6"
+dependencies = [
+    "numpy>=1.13.3",
+]
+
+[tool.setuptools]
+packages = ["ml"]

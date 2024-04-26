@@ -14,12 +14,15 @@ class LazyOp:
         
     def __call__(self, backend, out=None):
         method = getattr(backend, self.optype.name.lower())
-        if isinstance(self.optype, OpType.Alloc):
+        if self.optype == OpType.Inplace.Accumulate:
+            evaled_nodes = [n.evaluate() for n in self.inputNodes]
+            method(*evaled_nodes, out=out)
+        elif isinstance(self.optype, OpType.Alloc):
             return method(*self.args)
-        if isinstance(self.optype, OpType.View):
+        elif isinstance(self.optype, OpType.View):
             evaled_nodes = [n.evaluate() for n in self.inputNodes]
             return method(*evaled_nodes, *self.args)
-        if isinstance(self.optype, OpType.Inplace):
+        elif isinstance(self.optype, OpType.Inplace):
             evaled_nodes = [n.evaluate() for n in self.inputNodes]
             method(*evaled_nodes, out, *self.args)
 
@@ -34,7 +37,6 @@ class ComputeNode:
         self.is_alloced = False
         self.is_evaled = False
 
-        self.requires_grad = False
         self.grad = None
 
     def loadop(self, op):
@@ -68,7 +70,8 @@ class ComputeNode:
             return self.data
 
     def set_reevaluate(self):
-        if isinstance(self.op.optype, OpType.Inplace):
+        if isinstance(self.op.optype, (OpType.Inplace, OpType.View)):
             self.is_evaled = False
+            if self.grad: self.grad.is_evaled = False
         for parent in self.op.get_parents():
             parent.set_reevaluate()
